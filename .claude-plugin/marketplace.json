@@ -1,0 +1,14 @@
+{
+  "name": "roboto-mem",
+  "description": "Marketplace for the roboto-mem Team Memory plugin",
+  "owner": { "name": "Roboto" },
+  "plugins": [
+    {
+      "name": "roboto-mem",
+      "description": "Team Memory for Claude Code — git-backed Standards and Lessons synced into every session",
+      "version": "0.1.0",
+      "source": "./",
+      "author": { "name": "Roboto" }
+    }
+  ]
+}

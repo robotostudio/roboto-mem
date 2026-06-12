@@ -1,0 +1,3 @@
+# One Commons repo, Overlays only for access isolation
+
+At org scale (100–200 people, many squads), Team Memory stays one org-wide repo — the Commons — where squad scopes are directories with CODEOWNERS, not separate repos. Separate memory repos (Overlays) exist solely where access isolation demands it, e.g. client NDA pods, and compose into the Digest on top of the Commons. We rejected per-squad federation because it silos cross-squad lessons and fragments format versioning, and rejected a single flat repo because client-confidential knowledge would either leak org-wide or go uncaptured. Repo ACLs are the access-control mechanism; nothing finer-grained exists inside a repo.

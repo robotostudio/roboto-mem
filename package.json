@@ -1,0 +1,25 @@
+{
+  "name": "roboto-mem",
+  "version": "0.1.0",
+  "description": "Team Memory sync for Claude Code — git-backed knowledge base injected into agent sessions",
+  "type": "module",
+  "bin": { "roboto-mem": "./dist/cli.mjs" },
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src tests",
+    "lint:fix": "biome check --write src tests"
+  },
+  "dependencies": { "citty": "^0.1.6", "tinyglobby": "^0.2.10", "yaml": "^2.6.0" },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^20.17.0",
+    "@vitest/coverage-v8": "^4.0.0",
+    "tsdown": "^0.12.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
+  }
+}

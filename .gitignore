@@ -1,0 +1,5 @@
+node_modules/
+coverage/
+*.tsbuildinfo
+.roboto-mem-home/
+# dist/ is committed on purpose: git-installed plugins have no build step

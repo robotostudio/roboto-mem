@@ -1,0 +1,17 @@
+{
+  "description": "roboto-mem: inject Team Memory digest at session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/cli.mjs\" digest --hook",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
