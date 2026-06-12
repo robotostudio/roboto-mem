@@ -4,5 +4,6 @@
   "description": "Team Memory for Claude Code — git-backed Standards and Lessons synced into every session",
   "author": { "name": "Roboto" },
   "repository": "https://github.com/robotostudio/roboto-mem",
+  "license": "MIT",
   "keywords": ["memory", "knowledge-base", "team", "standards"]
 }

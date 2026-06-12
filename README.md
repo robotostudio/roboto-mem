@@ -13,6 +13,8 @@ For yourself, inside Claude Code:
 /plugin install roboto-mem@roboto-mem
 ```
 
+The CLI alone (for CI or non-Claude-Code use) is on npm: `npx roboto-mem` or `npm i -g roboto-mem`.
+
 For a team repo, add this to `.claude/settings.json` so teammates are prompted to install when they trust the folder:
 
 ```json
