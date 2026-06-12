@@ -3,3 +3,8 @@ coverage/
 *.tsbuildinfo
 .roboto-mem-home/
 # dist/ is committed on purpose: git-installed plugins have no build step
+# demo binaries are release assets, never repo content (tapes/scripts ARE committed)
+docs/demos/gif/
+docs/demos/mp4/
+docs/demos/out/
+docs/demos/studio/public/clips/

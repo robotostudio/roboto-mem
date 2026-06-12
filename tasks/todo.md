@@ -55,3 +55,24 @@ Rule in force: NO commits/pushes — every task ends at tests + typecheck + lint
 - NEW: private-repo CI wrinkle — memory-repo CI's `npx github:robotostudio/roboto-mem` needs read access (token or internal visibility); solve when the Commons is set up
 - Overlay-overrides-Commons review flow (parked in grilling)
 - migrate command deferred until a v2 schema exists
+
+## Demo assets — GIFs + videos + instructions for every feature (plan: ~/.claude/plans/mighty-sprouting-newt.md)
+- [x] Install VHS 0.11 (brew) + official remotion-best-practices skill (365K installs)
+- [x] Verify scan rules / update-check throttle / memoryHome against source (caught: sk-demo- bait needed no second hyphen)
+- [x] scripts/make-demo-world.sh — offline world at /tmp/roboto-mem-demo (bare commons + teamwork + acme-web bound + shims)
+- [x] Hand-verify every CLI command in the world (caught: promote requires --author; VHS strings need backticks when they contain double quotes)
+- [x] lib/style.tape + lib/world.tape + 10 feature tapes — ALL RENDERED, 139-613KB/gif, frames audited (scan-block arc + 880px digest + ❯ prompt all correct)
+- [x] scripts/render-demos.sh — rebuild world per tape, serial, size report
+- [x] 11-claude-live RECORDED (947K gif): cites [org] never-use-let + [squad/web] let-hotpaths override, emits const/reduce code — frame-audited. (VHS Wait broke across claude's alt-screen; fixed sleeps + post-hoc frame audit instead)
+- [x] Remotion studio scaffolded (4.0.475) + FeatureClip/Hero/Root written, tsc + eslint clean — LICENSE FLAG: free only ≤3-person companies; Hrithik to confirm Roboto headcount before public use
+- [x] Video renders DONE: 10 captioned features (1-3MB) + hero.mp4 89s/7MB + hero.gif 7.3MB — title/mid/end frames audited
+- [x] docs/demos/README.md instructions page + root README hero/"See it in action" + .gitignore for binaries
+- [x] Final gate: 181/181 tests, biome clean, build 485kB byte-identical dist, studio tsc+eslint clean, determinism re-render 0.2% byte drift / identical content
+
+## Review — demo assets (2026-06-12 afternoon)
+- 24 binary assets in docs/demos/{gif,mp4} + out/: 11 raw GIF+MP4 pairs (139K-947K gifs), 10 captioned feature MP4s, hero walkthrough (89s, title→6 chapters→install card)
+- All offline-reproducible except live/claude.tape (needs auth); scripts/render-demos.sh + render-videos.sh rebuild everything
+- Docs: docs/demos/README.md (journey-ordered instructions, release-asset URL placeholders), README hero + "See it in action"
+- NOT COMMITTED, NO RELEASE — embeds 404 until v0.1.0 release assets are uploaded (Hrithik's explicit word required)
+- Upload manifest when that day comes: 11 gifs from docs/demos/gif/, CAPTIONED mp4s from docs/demos/out/features/ as plain <id>.mp4 (raw mp4s stay local-only), 11-claude-live.mp4 from docs/demos/mp4/ (no captioned version), hero.gif + hero.mp4 from docs/demos/out/
+- Remotion license: confirm Roboto Studio ≤3 people before shipping studio publicly
