@@ -73,6 +73,20 @@ Rule in force: NO commits/pushes — every task ends at tests + typecheck + lint
 - 24 binary assets in docs/demos/{gif,mp4} + out/: 11 raw GIF+MP4 pairs (139K-947K gifs), 10 captioned feature MP4s, hero walkthrough (89s, title→6 chapters→install card)
 - All offline-reproducible except live/claude.tape (needs auth); scripts/render-demos.sh + render-videos.sh rebuild everything
 - Docs: docs/demos/README.md (journey-ordered instructions, release-asset URL placeholders), README hero + "See it in action"
-- NOT COMMITTED, NO RELEASE — embeds 404 until v0.1.0 release assets are uploaded (Hrithik's explicit word required)
-- Upload manifest when that day comes: 11 gifs from docs/demos/gif/, CAPTIONED mp4s from docs/demos/out/features/ as plain <id>.mp4 (raw mp4s stay local-only), 11-claude-live.mp4 from docs/demos/mp4/ (no captioned version), hero.gif + hero.mp4 from docs/demos/out/
+- SHIPPED 2026-06-12: commit 2e46292 pushed to main; release v0.1.0 created (tag mints update-check baseline) with 24 assets — 11 gifs, 10 captioned mp4s, live mp4, hero gif+mp4. README embeds verified 200.
 - Remotion license: confirm Roboto Studio ≤3 people before shipping studio publicly
+
+## Team Memory curation (2026-06-12, multi-agent)
+- [x] Workflow: 4 miners (global config, memory/lessons files, transcripts, commons baseline) → synthesis → staff-eng critique; 67 candidates → 14 entries (12 keep, 2 reworded, 0 cut)
+- [x] Transcripts miner died (socket) mid-workflow → re-launched standalone, results pending
+- [x] 14 entries written to ~/work/roboto/team-memory working tree: 9 org (no-agent-auto-commit, validate-at-boundaries, simplest-code-that-works, green-gate-before-done, secrets-hygiene + 4 lessons: background-jobs-fail-loudly, no-access-is-not-no-data, verify-before-destructive-deletes, spikes-use-production-data-shapes), 2 stacks/typescript lessons, 1 stacks/nextjs, 2 stacks/sanity
+- [x] Vendored lint: caught YAML colon in groq description (rephrased) → 19 entries, 0 problems
+- [x] Hrithik pushed org standards + stack entries (c3c324b, 16 files); 4 org Lessons still pending uncommitted in checkout
+
+## Friendly guide + overlays demo (2026-06-12 evening)
+- [x] find-skills → angular/angular adev-writing-guide (903 installs; skills CLI couldn't fetch it — read raw from repo, applied its Google tech-writing rules)
+- [x] Overlays verified empirically (2nd repo via .roboto-mem.json overlays[]; sync per-repo lines; digest merges) — answers "can you use 2 git repos"
+- [x] Demo world + tape 12-overlays + studio caption; rendered (849K gif), frame-audited, uploaded → release now 26 assets
+- [x] docs/INSTRUCTIONS.md — ELI5 guide: glossary, 8 task parts each with video, troubleshooting table, FAQ; all 13 asset links verified 200
+- [x] README links the guide prominently + overlays video; docs/demos gains overlays section
+- [ ] AWAITING HRITHIK'S WORD to commit/push the guide + overlay demo files

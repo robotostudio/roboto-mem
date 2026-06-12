@@ -59,6 +59,11 @@ export const CLIPS: readonly Clip[] = [
     title: "Lint in CI",
     caption: "The same checks on every Commons PR, findings printed redacted.",
   },
+  {
+    id: "12-overlays",
+    title: "Two memory repos",
+    caption: "Company Commons plus a client Overlay — one digest, both sources.",
+  },
 ];
 
 export const HERO_CLIP_IDS: readonly string[] = [

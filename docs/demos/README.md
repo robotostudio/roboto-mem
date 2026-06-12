@@ -101,7 +101,13 @@ roboto-mem lint .
 
 ![lint](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/10-lint.gif)
 
-## 10. Built for unreliable networks
+## 10. Two memory repos at once — Overlays
+
+A project can read a second memory repo on top of the Commons (agency case: company rules + client rules). Add its URL to the `overlays` array in `.roboto-mem.json`; sync reports each repo on its own line and the digest merges entries from both.
+
+![overlays](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/12-overlays.gif)
+
+## 11. Built for unreliable networks
 
 A dead VPN or a git-host outage doesn't take your sessions down. With a cache present, sync reports `stale (offline?)` and the digest keeps working from the last good copy (honestly labelled `synced unknown`). Only a missing cache is a real failure.
 

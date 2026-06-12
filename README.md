@@ -10,6 +10,8 @@ Team Memory for Claude Code — your team's Standards and Lessons, synced into e
 
 [Watch the walkthrough as MP4](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/hero.mp4)
 
+New to all of this? Start with **[the friendly guide](docs/INSTRUCTIONS.md)** — every command explained from zero, with a video for each step. No git expertise needed.
+
 ## What it is
 
 roboto-mem gives your team a Team Memory: a git-backed knowledge base synced into every Claude Code session. Entries are Standards (authored rules, always in force) or Lessons (learned gotchas, indexed, read on demand), and the Digest — the scope-filtered view of what applies to this repo — is injected at session start. New Entries arrive only through Promotion, the explicit, reviewed act of adding an Entry: it opens a PR, and nothing enters unreviewed.
@@ -41,7 +43,8 @@ Prefer video? Captioned MP4s of every feature:
 [promote](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/08-promote.mp4) ·
 [the secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/09-promote-scan.mp4) ·
 [lint](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/10-lint.mp4) ·
-[live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/11-claude-live.mp4)
+[live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/11-claude-live.mp4) ·
+[two memory repos](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/12-overlays.mp4)
 
 ## Install
 

@@ -91,6 +91,27 @@ Rotate keys every quarter. Example .env:
 API_KEY="sk-demo4f9a2b8c1e7d3a5f9b2c8e1d7a3f"
 MD
 
+# --- client overlay repo (the second memory repo for the overlays demo) ---
+git init --bare --initial-branch=main "$WORLD/client-memory.git" --quiet
+git clone --quiet "$WORLD/client-memory.git" "$WORLD/client-work" 2>/dev/null
+
+cat > "$WORLD/client-work/memory.json" <<'JSON'
+{ "formatVersion": 1 }
+JSON
+
+mkdir -p "$WORLD/client-work/entries/org"
+cat > "$WORLD/client-work/entries/org/client-naming.md" <<'MD'
+---
+description: Client features use the acme- prefix in package names
+type: standard
+author: maya
+date: 2026-06-05
+---
+Every package built for this client is named acme-<feature>. No exceptions, including internal tooling.
+MD
+
+(cd "$WORLD/client-work" && git add . && git commit --quiet -m "seed client memory" && git push --quiet origin main)
+
 # --- consumer projects ---
 cat > "$WORLD/acme-web/package.json" <<'JSON'
 {
@@ -162,7 +183,20 @@ git commit --quiet -m "add squads/web/use-server-actions"
 git push --quiet origin main
 SH
 
-chmod +x "$WORLD/bin/roboto-mem" "$WORLD/bin/gh" "$WORLD/bin/teammate-push"
+cat > "$WORLD/bin/add-overlay" <<'SH'
+#!/usr/bin/env bash
+# Tape helper: adds the client overlay to .roboto-mem.json (stands in for "open it in your editor").
+set -euo pipefail
+cd /tmp/roboto-mem-demo/acme-web
+python3 - <<'PY'
+import json
+c = json.load(open(".roboto-mem.json"))
+c["overlays"] = ["file:///tmp/roboto-mem-demo/client-memory.git"]
+json.dump(c, open(".roboto-mem.json", "w"), indent=2)
+PY
+SH
+
+chmod +x "$WORLD/bin/roboto-mem" "$WORLD/bin/gh" "$WORLD/bin/teammate-push" "$WORLD/bin/add-overlay"
 
 cat > "$WORLD/env.zsh" <<'ZSH'
 export ROBOTO_MEM_HOME=/tmp/roboto-mem-demo/home
