@@ -1,0 +1,62 @@
+name: Release
+
+# Triggered by pushing a version tag, e.g. `git push origin v0.1.2`.
+# Prerequisite (one time): configure npm trusted publishing for this package
+# at npmjs.com → package → Settings → Trusted publishers, with:
+#   repository: robotostudio/roboto-mem · workflow: release.yml · environment: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+# Never cancel an in-flight release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Scopes the publish to an environment you can protect in repo settings,
+    # and which the npm trusted publisher is pinned to.
+    environment: release
+    permissions:
+      contents: write # create the GitHub release
+      id-token: write # OIDC for npm trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 ships 10.x.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install --global npm@latest
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Tag matches every version source
+        run: pnpm check:version "${GITHUB_REF_NAME}"
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # `prepublishOnly` runs `pnpm build && pnpm test` before anything ships.
+      # Auth + provenance come from OIDC trusted publishing — no NPM_TOKEN.
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes
