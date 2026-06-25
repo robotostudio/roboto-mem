@@ -3,6 +3,7 @@
   "version": "0.1.1",
   "description": "Team Memory sync for Claude Code — git-backed knowledge base injected into agent sessions",
   "license": "MIT",
+  "packageManager": "pnpm@10.32.1",
   "repository": { "type": "git", "url": "git+https://github.com/robotostudio/roboto-mem.git" },
   "homepage": "https://github.com/robotostudio/roboto-mem#readme",
   "keywords": ["claude-code", "claude", "memory", "knowledge-base", "team", "standards", "plugin"],
@@ -16,8 +17,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src tests",
-    "lint:fix": "biome check --write src tests"
+    "lint": "biome check src tests scripts",
+    "lint:fix": "biome check --write src tests scripts",
+    "check:version": "node scripts/check-version-sync.mjs",
+    "bump": "node scripts/bump-version.mjs"
   },
   "dependencies": { "citty": "^0.1.6", "tinyglobby": "^0.2.10", "yaml": "^2.6.0" },
   "devDependencies": {

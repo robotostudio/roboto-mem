@@ -4,6 +4,14 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
+    // Tests spawn `git commit`; CI runners configure no identity and disable
+    // auto-detect, so set author/committer here to keep the suite self-contained.
+    env: {
+      GIT_AUTHOR_NAME: "Hrithik",
+      GIT_AUTHOR_EMAIL: "hrithik@robotostudio.com",
+      GIT_COMMITTER_NAME: "Hrithik",
+      GIT_COMMITTER_EMAIL: "hrithik@robotostudio.com",
+    },
     coverage: {
       provider: "v8",
       include: ["src/**"],
