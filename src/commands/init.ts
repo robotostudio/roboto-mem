@@ -144,7 +144,7 @@ const bindMode = async (options: InitOptions): Promise<CommandResult> => {
         "  --project <name>          Identifier for this project",
         "",
         "Example:",
-        "  roboto-mem init --commons-url git@github.com:org/team-memory.git --project my-app",
+        "  roboto-mem init --commons-url https://github.com/org/team-memory.git --project my-app",
       ].join("\n"),
     };
   }

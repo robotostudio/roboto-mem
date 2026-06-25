@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -70,7 +70,10 @@ describe("bundle self-containment (ADR 0004)", () => {
     // A bare-import regression dies here with ERR_MODULE_NOT_FOUND (exit 1).
     const version = await rawRun([isolated, "--version"], runDir);
     expect(version.code).toBe(0);
-    expect(version.stdout + version.stderr).toContain("0.1.0");
+    const { version: pkgVersion } = JSON.parse(
+      await readFile(join(repoRoot, "package.json"), "utf8"),
+    ) as { version: string };
+    expect(version.stdout + version.stderr).toContain(pkgVersion);
 
     // Prove citty is actually wired (entrypoint guard ran runMain).
     const usage = await rawRun([isolated, "not-a-command"], runDir);

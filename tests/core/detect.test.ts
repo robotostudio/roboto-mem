@@ -134,4 +134,40 @@ describe("detectWorkspaces", () => {
     const result = await detectWorkspaces(tmp);
     expect(result).toEqual({});
   });
+
+  it("typescript via devDependency → stack/typescript", async () => {
+    const tmp = await makeTmp();
+    await writeJson(join(tmp, "package.json"), {
+      devDependencies: { typescript: "^5" },
+    });
+    const result = await detectWorkspaces(tmp);
+    expect(result).toEqual({ ".": ["stack/typescript"] });
+  });
+
+  it("typescript via catalog: version value still matches (keys, not versions)", async () => {
+    const tmp = await makeTmp();
+    await writeJson(join(tmp, "package.json"), {
+      devDependencies: { typescript: "catalog:" },
+    });
+    const result = await detectWorkspaces(tmp);
+    expect(result).toEqual({ ".": ["stack/typescript"] });
+  });
+
+  it("tsconfig.json present with no ts dep → stack/typescript", async () => {
+    const tmp = await makeTmp();
+    await writeJson(join(tmp, "package.json"), { name: "x" });
+    await touch(join(tmp, "tsconfig.json"));
+    const result = await detectWorkspaces(tmp);
+    expect(result).toEqual({ ".": ["stack/typescript"] });
+  });
+
+  it("react + typescript → sorted ['stack/react','stack/typescript']", async () => {
+    const tmp = await makeTmp();
+    await writeJson(join(tmp, "package.json"), {
+      dependencies: { react: "^19" },
+      devDependencies: { typescript: "catalog:" },
+    });
+    const result = await detectWorkspaces(tmp);
+    expect(result).toEqual({ ".": ["stack/react", "stack/typescript"] });
+  });
 });

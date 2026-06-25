@@ -51,7 +51,7 @@ Prefer video? Captioned MP4s of every feature:
 For yourself, inside Claude Code:
 
 ```
-/plugin marketplace add robotostudio/roboto-mem
+/plugin marketplace add https://github.com/robotostudio/roboto-mem.git
 /plugin install roboto-mem@roboto-mem
 ```
 
@@ -95,7 +95,7 @@ Inside Claude Code, the plugin adds `/mem-status`, `/mem-sync`, `/mem-upgrade` (
 
 ## How scoping works
 
-Entries live at a Scope: `org`, `squad/<id>`, `stack/<id>`, or `project/<id>`. A repo's session scopes come from its binding (project, squads) plus detection (`react` in `package.json` → `stack/react`), and the Digest includes exactly the entries whose scope applies. A squad Standard can explicitly override an org Standard — the Digest then replaces the org entry's body with a pointer to the override, so your agent never reads two contradicting rules.
+Entries live at a Scope: `org`, `squad/<id>`, `stack/<id>`, or `project/<id>`. A repo's session scopes come from its binding (project, squads) plus detection (`react` in `package.json` → `stack/react`, `typescript` → `stack/typescript`), and the Digest includes exactly the entries whose scope applies. A squad Standard can explicitly override an org Standard — the Digest then replaces the org entry's body with a pointer to the override, so your agent never reads two contradicting rules.
 
 ## When the network is down
 

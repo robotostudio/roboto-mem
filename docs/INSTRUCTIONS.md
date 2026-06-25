@@ -38,7 +38,7 @@ The notebook lives in a git repository. Git is just a filing cabinet that rememb
 You need exactly one thing: the plugin. Open Claude Code and run these two commands:
 
 ```
-/plugin marketplace add robotostudio/roboto-mem
+/plugin marketplace add https://github.com/robotostudio/roboto-mem.git
 /plugin install roboto-mem@roboto-mem
 ```
 
@@ -54,7 +54,7 @@ If `/mem-status` says the project isn't linked yet, link it. In a terminal, insi
 
 ```sh
 npx roboto-mem init . \
-  --commons-url git@github.com:your-org/team-memory.git \
+  --commons-url https://github.com/your-org/team-memory.git \
   --project my-app \
   --squads web
 ```
@@ -69,7 +69,7 @@ What each piece means:
 
 The command writes one small file, `.roboto-mem.json`, into the project. Think of it as a sticky note on the repo that says "read *this* notebook, as *this* project". Commit that file so teammates get the link for free.
 
-You don't tell it your tech stack — it looks at `package.json` and figures out react, next, and friends on its own.
+You don't tell it your tech stack — it looks at `package.json` and figures out react, next, typescript, and friends on its own.
 
 [▶ Watch: linking a project](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/02-init-bind.mp4)
 
@@ -166,9 +166,9 @@ Open the project's `.roboto-mem.json` in any editor and add the second repo's ad
 ```json
 {
   "configVersion": 1,
-  "commons": "git@github.com:your-org/team-memory.git",
+  "commons": "https://github.com/your-org/team-memory.git",
   "overlays": [
-    "git@github.com:your-org/acme-client-memory.git"
+    "https://github.com/your-org/acme-client-memory.git"
   ],
   "project": "acme-web",
   "squads": ["web"]
@@ -179,8 +179,8 @@ Then sync. You'll see two `synced` lines — one per notebook — and the digest
 
 ```sh
 npx roboto-mem sync
-# synced git@github.com:your-org/team-memory.git
-# synced git@github.com:your-org/acme-client-memory.git
+# synced https://github.com/your-org/team-memory.git
+# synced https://github.com/your-org/acme-client-memory.git
 ```
 
 An overlay repo is just another Commons — scaffold one the same way (`roboto-mem init --commons` in an empty repo, push it). Add as many overlays as you need; the list takes more than one.

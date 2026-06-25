@@ -35,6 +35,7 @@ export const STACK_SIGNALS: ReadonlyArray<{
     files: [],
   },
   { stack: "vue", deps: ["vue", "nuxt"], files: [] },
+  { stack: "typescript", deps: ["typescript"], files: ["tsconfig.json"] },
 ];
 
 type PkgJson = {
