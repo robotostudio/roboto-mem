@@ -11933,7 +11933,7 @@ const loadMemory = async (dir) => {
 const memoryHome = () => process.env.ROBOTO_MEM_HOME ?? path.join(os.homedir(), ".roboto-mem");
 //#endregion
 //#region src/core/version.ts
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 //#endregion
 //#region src/commands/sync.ts
 const syncRepos = async (config, home) => {
@@ -12130,6 +12130,11 @@ const STACK_SIGNALS = [
 		stack: "vue",
 		deps: ["vue", "nuxt"],
 		files: []
+	},
+	{
+		stack: "typescript",
+		deps: ["typescript"],
+		files: ["tsconfig.json"]
 	}
 ];
 async function readPkg(dir) {
@@ -12377,7 +12382,7 @@ const bindMode = async (options) => {
 			"  --project <name>          Identifier for this project",
 			"",
 			"Example:",
-			"  roboto-mem init --commons-url git@github.com:org/team-memory.git --project my-app"
+			"  roboto-mem init --commons-url https://github.com/org/team-memory.git --project my-app"
 		].join("\n")
 	};
 	const workspaces = await detectWorkspaces(dir);
