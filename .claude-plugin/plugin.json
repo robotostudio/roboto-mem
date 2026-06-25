@@ -1,6 +1,6 @@
 {
   "name": "roboto-mem",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Team Memory for Claude Code — git-backed Standards and Lessons synced into every session",
   "author": { "name": "Roboto" },
   "repository": "https://github.com/robotostudio/roboto-mem",
