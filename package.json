@@ -22,7 +22,7 @@
     "check:version": "node scripts/check-version-sync.mjs",
     "bump": "node scripts/bump-version.mjs"
   },
-  "dependencies": { "citty": "^0.1.6", "tinyglobby": "^0.2.10", "yaml": "^2.6.0" },
+  "dependencies": { "citty": "^0.2.2", "tinyglobby": "^0.2.10", "yaml": "^2.6.0" },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@types/node": "^20.17.0",
