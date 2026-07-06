@@ -6,7 +6,7 @@
     {
       "name": "roboto-mem",
       "description": "Team Memory for Claude Code — git-backed Standards and Lessons synced into every session",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "source": "./",
       "author": { "name": "Roboto" }
     }

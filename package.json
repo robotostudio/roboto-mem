@@ -1,6 +1,6 @@
 {
   "name": "roboto-mem",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Team Memory sync for Claude Code — git-backed knowledge base injected into agent sessions",
   "license": "MIT",
   "packageManager": "pnpm@10.32.1",
