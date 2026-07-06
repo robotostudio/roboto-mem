@@ -339,4 +339,45 @@ This lesson comes exclusively from the overlay repo.`,
     expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
     expect(parsed.hookSpecificOutput.additionalContext).toMatch(/unreadable/i);
   });
+
+  // 12. skills: warns on drift-restore at session start, stays silent otherwise
+  it("skills: warns on drift-restore at session start, stays silent otherwise", async () => {
+    const cwd = await makeDir();
+    const fixtureRoot = await makeDir();
+    const home = await makeDir();
+    const target = await makeDir();
+    const fixture = await makeCommonsFixture(fixtureRoot);
+    await pushEntry(
+      fixture,
+      "skills/grill-me/SKILL.md",
+      "---\nname: grill-me\ndescription: d\n---\nteam body",
+    );
+    await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+
+    const first = await runDigest({
+      cwd,
+      home,
+      skillsTargetDir: target,
+      today: TODAY,
+    });
+    expect(first.exitCode).toBe(0);
+    expect(first.output).not.toContain("team skill");
+
+    await fs.writeFile(
+      path.join(target, "grill-me", "SKILL.md"),
+      "local edits",
+      "utf8",
+    );
+
+    const second = await runDigest({
+      cwd,
+      home,
+      skillsTargetDir: target,
+      today: TODAY,
+    });
+    expect(second.exitCode).toBe(0);
+    expect(second.output).toContain(
+      "> WARNING: team skill grill-me: restored — local edits were replaced",
+    );
+  });
 });

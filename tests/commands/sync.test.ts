@@ -1,7 +1,9 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runSync } from "../../src/commands/sync.js";
 import { saveConfig } from "../../src/core/config.js";
-import { makeCommonsFixture } from "../helpers/git.js";
+import { makeCommonsFixture, pushEntry } from "../helpers/git.js";
 import { tmpDirFactory } from "../helpers/tmp.js";
 
 describe("sync command", () => {
@@ -78,5 +80,38 @@ describe("sync command", () => {
     const result = await runSync({ cwd, home });
     expect(result.exitCode).toBe(1);
     expect(result.output).toMatch(/FAILED/i);
+  });
+
+  it("materializes commons skills into the target dir and reports it", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+    const target = await makeDir();
+    const fixture = await makeCommonsFixture(tmp);
+
+    await pushEntry(
+      fixture,
+      "skills/grill-me/SKILL.md",
+      "---\nname: grill-me\ndescription: d\n---\nbody",
+    );
+
+    await saveConfig(cwd, {
+      configVersion: 1,
+      commons: fixture.remoteUrl,
+      overlays: [],
+      project: "demo",
+      squads: [],
+      workspaces: {},
+    });
+
+    const result = await runSync({ cwd, home, skillsTargetDir: target });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("skills: 1 materialized");
+
+    const skillMd = await fs.readFile(
+      path.join(target, "grill-me", "SKILL.md"),
+      "utf8",
+    );
+    expect(skillMd).toContain("name: grill-me");
   });
 });

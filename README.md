@@ -90,12 +90,18 @@ For a team repo, add this to `.claude/settings.json` so teammates are prompted t
 | `roboto-mem promote --scope <s> --type <standard\|lesson> --name <n> …` | Validate → dedupe → secret-scan → branch → PR |
 | `roboto-mem lint <dir>` | The CI gate: validate every entry, redacted findings, exit 1 on problems |
 | `roboto-mem status` | Binding, session scopes, entry counts, sync freshness |
+| `roboto-mem skill add <owner>/<repo> [--skill <n>]` | Vendor a store skill into the Commons pinned at a commit — validate → secret-scan → PR |
+| `roboto-mem skill promote <name>` | Lift a personal skill from ~/.claude/skills into a Commons PR |
 
-Inside Claude Code, the plugin adds `/mem-status`, `/mem-sync`, `/mem-upgrade` (prompted, never silent), and `/promote`.
+Inside Claude Code, the plugin adds `/mem-status`, `/mem-sync`, `/mem-upgrade` (prompted, never silent), `/promote`, and `/skill-add`.
 
 ## How scoping works
 
 Entries live at a Scope: `org`, `squad/<id>`, `stack/<id>`, or `project/<id>`. A repo's session scopes come from its binding (project, squads) plus detection (`react` in `package.json` → `stack/react`, `typescript` → `stack/typescript`), and the Digest includes exactly the entries whose scope applies. A squad Standard can explicitly override an org Standard — the Digest then replaces the org entry's body with a pointer to the override, so your agent never reads two contradicting rules.
+
+## Team Skills
+
+Team Skills are reusable agent workflows — `SKILL.md` directories living at `skills/<name>/` in the Commons, reviewed like any other Entry. They enter via `roboto-mem skill add <owner>/<repo>` (vendored from GitHub, pinned at a commit), `roboto-mem skill promote <name>` (lifted from your personal `~/.claude/skills/`), or a direct PR adding a directory under `skills/`. Every bound project materializes them into `~/.claude/skills/` on sync, so a merged skill reaches teammates on their next session start. A personal skill with the same name always wins — the team version is reported as shadowed, never overwritten. Remove a skill from the Commons and the next sync deletes the materialized copy too.
 
 ## When the network is down
 

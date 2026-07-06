@@ -1,8 +1,12 @@
+import { readFile } from "node:fs/promises";
+import * as path from "node:path";
+import { glob } from "tinyglobby";
 import { estimateTokens } from "../core/digest.js";
 import type { Entry } from "../core/entry.js";
 import { loadMemory } from "../core/memory-repo.js";
 import { scanEntry } from "../core/scan.js";
 import { isValidScope, SCOPE_ID_RE } from "../core/scopes.js";
+import { findSymlink, loadSkills, PROVENANCE_FILE } from "../core/skill.js";
 import type { CommandResult } from "../core/types.js";
 
 export interface LintOptions {
@@ -142,6 +146,50 @@ const secretFindings = (entries: Entry[]): SecretResult => {
   return { errors, warnings };
 };
 
+// ─── Skill finding collectors ────────────────────────────────────────────────
+
+const skillErrorFindings = (
+  errors: { dir: string; error: string }[],
+): string[] =>
+  errors.map(({ dir, error }) => `skills/${dir}/SKILL.md: ${error}`);
+
+const skillSecretFindings = async (
+  repoDir: string,
+  dirNames: string[],
+): Promise<SecretResult> => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  for (const dirName of dirNames) {
+    const abs = path.join(repoDir, "skills", dirName);
+
+    const symlink = await findSymlink(abs);
+    if (symlink) {
+      errors.push(
+        `skills/${dirName}/${symlink}: symbolic links are not allowed in skills`,
+      );
+    }
+
+    const files = (
+      await glob(["**/*"], {
+        cwd: abs,
+        dot: true,
+        followSymbolicLinks: false,
+      })
+    ).filter((f) => f !== PROVENANCE_FILE);
+    files.sort();
+    for (const f of files) {
+      const text = await readFile(path.join(abs, f), "utf8").catch(() => "");
+      for (const finding of scanEntry(text)) {
+        const line = `skills/${dirName}/${f}: [${finding.rule}] ${finding.match}`;
+        if (finding.severity === "error") errors.push(line);
+        else warnings.push(line);
+      }
+    }
+  }
+  return { errors, warnings };
+};
+
 // ─── Main command ─────────────────────────────────────────────────────────────
 
 export const runLint = async (options: LintOptions): Promise<CommandResult> => {
@@ -159,14 +207,22 @@ export const runLint = async (options: LintOptions): Promise<CommandResult> => {
     ...budgetFindings(entries, budgets),
   ];
 
+  const skillsLoad = await loadSkills(options.dir);
+  errorLines.push(...skillErrorFindings(skillsLoad.errors));
+
+  const skillSecrets = await skillSecretFindings(
+    options.dir,
+    skillsLoad.dirNames,
+  );
+  errorLines.push(...skillSecrets.errors);
+
   const { errors: secretErrors, warnings: secretWarnings } =
     secretFindings(entries);
   errorLines.push(...secretErrors);
 
+  const allWarnings = [...secretWarnings, ...skillSecrets.warnings];
   const warningsSection =
-    secretWarnings.length > 0
-      ? `\nwarnings:\n${secretWarnings.join("\n")}`
-      : "";
+    allWarnings.length > 0 ? `\nwarnings:\n${allWarnings.join("\n")}` : "";
 
   if (errorLines.length > 0) {
     return {
@@ -175,8 +231,10 @@ export const runLint = async (options: LintOptions): Promise<CommandResult> => {
     };
   }
 
+  const skillSuffix =
+    skillsLoad.skills.length > 0 ? `, ${skillsLoad.skills.length} skills` : "";
   return {
     exitCode: 0,
-    output: `✓ ${entries.length} entries, 0 problems${warningsSection}`,
+    output: `✓ ${entries.length} entries${skillSuffix}, 0 problems${warningsSection}`,
   };
 };

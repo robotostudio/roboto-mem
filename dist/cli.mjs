@@ -2,7 +2,7 @@
 import { createRequire } from "node:module";
 import { realpathSync } from "node:fs";
 import * as fs from "node:fs/promises";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,7 @@ import f from "node:readline";
 import { createHash } from "node:crypto";
 import * as os from "node:os";
 import * as nativeFs from "fs";
-import { readdir, readdirSync, realpath, realpathSync as realpathSync$1, stat, statSync } from "fs";
+import { readdir as readdir$1, readdirSync, realpath, realpathSync as realpathSync$1, stat, statSync } from "fs";
 import { basename, dirname, isAbsolute, normalize, posix, relative, resolve, sep as sep$1 } from "path";
 import { fileURLToPath as fileURLToPath$1 } from "url";
 import { createRequire as createRequire$1 } from "module";
@@ -2178,7 +2178,7 @@ async function runMain(cmd, opts = {}) {
 //#region src/core/cache.ts
 const cacheKey = (projectPath) => createHash("sha256").update(projectPath).digest("hex").slice(0, 12);
 const cacheFilePath = (home, projectPath) => join(home, "cache", `${cacheKey(projectPath)}.json`);
-const isValidShape = (v) => typeof v === "object" && v !== null && typeof v.date === "string" && typeof v.digest === "string";
+const isValidShape$1 = (v) => typeof v === "object" && v !== null && typeof v.date === "string" && typeof v.digest === "string";
 const writeCache = async (home, projectPath, cached) => {
 	try {
 		const filePath = cacheFilePath(home, projectPath);
@@ -2190,7 +2190,7 @@ const readCache = async (home, projectPath) => {
 	try {
 		const raw = await readFile(cacheFilePath(home, projectPath), "utf8");
 		const parsed = JSON.parse(raw);
-		return isValidShape(parsed) ? parsed : void 0;
+		return isValidShape$1(parsed) ? parsed : void 0;
 	} catch {
 		return;
 	}
@@ -5069,7 +5069,7 @@ function getOptions(options) {
 	opts.cwd = (opts.cwd instanceof URL ? fileURLToPath$1(opts.cwd) : resolve(opts.cwd || process.cwd())).replace(BACKSLASHES, "/");
 	opts.ignore = ensureStringArray(opts.ignore);
 	opts.fs && (opts.fs = {
-		readdir: opts.fs.readdir || readdir,
+		readdir: opts.fs.readdir || readdir$1,
 		readdirSync: opts.fs.readdirSync || readdirSync,
 		realpath: opts.fs.realpath || realpath,
 		realpathSync: opts.fs.realpathSync || realpathSync$1,
@@ -11721,7 +11721,7 @@ const entryPathForScope = (scope, name) => {
 	const [prefix, sub] = scope.split("/");
 	return `entries/${prefix === "squad" ? "squads" : prefix === "stack" ? "stacks" : "projects"}/${sub}/${name}.md`;
 };
-const fail$1 = (file, error) => ({
+const fail$2 = (file, error) => ({
 	ok: false,
 	file,
 	error
@@ -11735,22 +11735,22 @@ const parseFrontmatter = (yamlBlock) => {
 	}
 };
 const parseEntry = (raw, file) => {
-	if (!raw.startsWith("---\n")) return fail$1(file, "Missing YAML frontmatter: file must start with ---");
+	if (!raw.startsWith("---\n")) return fail$2(file, "Missing YAML frontmatter: file must start with ---");
 	const closeIdx = raw.indexOf("\n---\n", 4);
-	if (closeIdx === -1) return fail$1(file, "Unclosed YAML frontmatter: missing closing ---");
+	if (closeIdx === -1) return fail$2(file, "Unclosed YAML frontmatter: missing closing ---");
 	const yamlBlock = raw.slice(4, closeIdx);
 	const body = raw.slice(closeIdx + 5).trim();
 	const fm = parseFrontmatter(yamlBlock);
-	if (!fm) return fail$1(file, "Malformed YAML frontmatter");
-	if ("scope" in fm) return fail$1(file, "scope comes from the file path, not frontmatter");
-	if ("name" in fm) return fail$1(file, "name comes from the file path, not frontmatter");
+	if (!fm) return fail$2(file, "Malformed YAML frontmatter");
+	if ("scope" in fm) return fail$2(file, "scope comes from the file path, not frontmatter");
+	if ("name" in fm) return fail$2(file, "name comes from the file path, not frontmatter");
 	const scope = scopeFromPath(file);
-	if (!scope) return fail$1(file, `unknown scope directory: ${file}`);
-	if (typeof fm.description !== "string" || !fm.description) return fail$1(file, `required field "description" is missing or not a string in ${file}`);
-	if (typeof fm.type !== "string" || !VALID_TYPES.has(fm.type)) return fail$1(file, `required field "type" must be "standard" or "lesson" in ${file}`);
-	if (typeof fm.author !== "string" || !fm.author) return fail$1(file, `required field "author" is missing or not a string in ${file}`);
-	if (typeof fm.date !== "string" || !DATE_RE.test(fm.date)) return fail$1(file, `required field "date" must be YYYY-MM-DD in ${file}`);
-	if (fm.overrides !== void 0 && typeof fm.overrides !== "string") return fail$1(file, `optional field "overrides" must be a string in ${file}`);
+	if (!scope) return fail$2(file, `unknown scope directory: ${file}`);
+	if (typeof fm.description !== "string" || !fm.description) return fail$2(file, `required field "description" is missing or not a string in ${file}`);
+	if (typeof fm.type !== "string" || !VALID_TYPES.has(fm.type)) return fail$2(file, `required field "type" must be "standard" or "lesson" in ${file}`);
+	if (typeof fm.author !== "string" || !fm.author) return fail$2(file, `required field "author" is missing or not a string in ${file}`);
+	if (typeof fm.date !== "string" || !DATE_RE.test(fm.date)) return fail$2(file, `required field "date" must be YYYY-MM-DD in ${file}`);
+	if (fm.overrides !== void 0 && typeof fm.overrides !== "string") return fail$2(file, `optional field "overrides" must be a string in ${file}`);
 	return {
 		ok: true,
 		entry: {
@@ -11932,8 +11932,355 @@ const loadMemory = async (dir) => {
 };
 const memoryHome = () => process.env.ROBOTO_MEM_HOME ?? path.join(os.homedir(), ".roboto-mem");
 //#endregion
+//#region src/core/skill.ts
+const PROVENANCE_FILE = ".provenance.json";
+const SHA_RE = /^[0-9a-f]{40}$/;
+const parseSkillFrontmatter = (raw) => {
+	if (!raw.startsWith("---\n")) return {
+		ok: false,
+		error: "missing YAML frontmatter"
+	};
+	const closeIdx = raw.indexOf("\n---", 4);
+	if (closeIdx === -1) return {
+		ok: false,
+		error: "unclosed YAML frontmatter"
+	};
+	const fm = (() => {
+		try {
+			const parsed = (0, import_dist.parse)(raw.slice(4, closeIdx));
+			return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	})();
+	if (!fm) return {
+		ok: false,
+		error: "malformed YAML frontmatter"
+	};
+	if (typeof fm.name !== "string" || !SCOPE_ID_RE.test(fm.name)) return {
+		ok: false,
+		error: "frontmatter \"name\" must be kebab-case"
+	};
+	if (typeof fm.description !== "string" || !fm.description.trim()) return {
+		ok: false,
+		error: "frontmatter \"description\" is required"
+	};
+	return {
+		ok: true,
+		name: fm.name,
+		description: fm.description
+	};
+};
+const parseProvenance = (text) => {
+	const raw = (() => {
+		try {
+			const parsed = JSON.parse(text);
+			return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	})();
+	if (!raw) return {
+		ok: false,
+		error: "provenance is not a JSON object"
+	};
+	if (typeof raw.source !== "string" || !raw.source) return {
+		ok: false,
+		error: "provenance source must be a string"
+	};
+	if (typeof raw.ref !== "string" || !SHA_RE.test(raw.ref)) return {
+		ok: false,
+		error: "provenance ref must be a 40-char commit sha"
+	};
+	if (typeof raw.path !== "string" || !raw.path) return {
+		ok: false,
+		error: "provenance path must be a string"
+	};
+	if (typeof raw.vendoredAt !== "string" || !DATE_RE.test(raw.vendoredAt)) return {
+		ok: false,
+		error: "provenance vendoredAt must be YYYY-MM-DD"
+	};
+	if (typeof raw.vendoredBy !== "string" || !raw.vendoredBy) return {
+		ok: false,
+		error: "provenance vendoredBy must be a string"
+	};
+	return {
+		ok: true,
+		provenance: {
+			source: raw.source,
+			ref: raw.ref,
+			path: raw.path,
+			vendoredAt: raw.vendoredAt,
+			vendoredBy: raw.vendoredBy
+		}
+	};
+};
+const loadSkills = async (repoDir) => {
+	const dirs = await glob(["skills/*"], {
+		cwd: repoDir,
+		onlyDirectories: true,
+		followSymbolicLinks: false
+	});
+	dirs.sort();
+	const skills = [];
+	const errors = [];
+	const dirNames = [];
+	for (const dirPath of dirs) {
+		const dirName = dirPath.split("/")[1] ?? "";
+		if (!dirName) continue;
+		dirNames.push(dirName);
+		const dir = `skills/${dirName}`;
+		const raw = await readFile(path.join(repoDir, dir, "SKILL.md"), "utf8").catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+		if (typeof raw !== "string") {
+			errors.push({
+				dir: dirName,
+				error: `SKILL.md is missing or unreadable: ${raw.error}`
+			});
+			continue;
+		}
+		const fm = parseSkillFrontmatter(raw);
+		if (!fm.ok) {
+			errors.push({
+				dir: dirName,
+				error: fm.error
+			});
+			continue;
+		}
+		if (fm.name !== dirName) {
+			errors.push({
+				dir: dirName,
+				error: `frontmatter name "${fm.name}" must match directory "${dirName}"`
+			});
+			continue;
+		}
+		const provText = await readFile(path.join(repoDir, dir, PROVENANCE_FILE), "utf8").catch(() => void 0);
+		if (provText === void 0) {
+			skills.push({
+				name: fm.name,
+				description: fm.description,
+				dir
+			});
+			continue;
+		}
+		const prov = parseProvenance(provText);
+		if (!prov.ok) {
+			errors.push({
+				dir: dirName,
+				error: `${PROVENANCE_FILE}: ${prov.error}`
+			});
+			continue;
+		}
+		skills.push({
+			name: fm.name,
+			description: fm.description,
+			dir,
+			provenance: prov.provenance
+		});
+	}
+	return {
+		skills,
+		errors,
+		dirNames
+	};
+};
+/**
+* Finds the first symlink anywhere under `dir` (recursively), ignoring
+* anything nested inside a `.git` directory. Returns its path relative to
+* `dir`, or `undefined` when the tree contains no symlinks.
+*/
+const findSymlink = async (dir) => {
+	const hit = (await readdir(dir, {
+		recursive: true,
+		withFileTypes: true
+	})).find((e) => e.isSymbolicLink() && !`${e.parentPath ?? ""}`.includes(`${path.sep}.git`));
+	return hit ? path.relative(dir, path.join(hit.parentPath, hit.name)) : void 0;
+};
+//#endregion
+//#region src/core/skill-manifest.ts
+const manifestPath = (home) => path.join(home, "skills-manifest.json");
+const isValidShape = (v) => typeof v === "object" && v !== null && v.formatVersion === 1 && (v.materializedAt === void 0 || typeof v.materializedAt === "string") && typeof v.skills === "object" && v.skills !== null && !Array.isArray(v.skills) && Object.values(v.skills).every((s) => typeof s === "object" && s !== null && typeof s.hash === "string");
+const readSkillManifest = async (home) => {
+	try {
+		const text = await readFile(manifestPath(home), "utf8");
+		const parsed = JSON.parse(text);
+		return isValidShape(parsed) ? parsed : {
+			formatVersion: 1,
+			skills: {}
+		};
+	} catch {
+		return {
+			formatVersion: 1,
+			skills: {}
+		};
+	}
+};
+const writeSkillManifest = async (home, manifest) => {
+	await mkdir(home, { recursive: true });
+	await writeFile(manifestPath(home), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+};
+const hashSkillDir = async (dir) => {
+	const files = (await glob(["**/*"], {
+		cwd: dir,
+		dot: true,
+		followSymbolicLinks: false
+	})).filter((f) => path.basename(f) !== PROVENANCE_FILE);
+	files.sort();
+	const h = createHash("sha256");
+	for (const f of files) {
+		h.update(f);
+		h.update("\0");
+		h.update(await readFile(path.join(dir, f)));
+		h.update("\0");
+	}
+	return h.digest("hex");
+};
+//#endregion
+//#region src/core/materialize.ts
+const defaultSkillsTarget = () => path.join(os.homedir(), ".claude", "skills");
+const exists = (p) => access(p).then(() => true, () => false);
+const copySkill = async (src, dest) => {
+	const tmp = `${dest}.tmp-${process.pid}`;
+	await mkdir(path.dirname(dest), { recursive: true });
+	try {
+		await rm(tmp, {
+			recursive: true,
+			force: true
+		});
+		await cp(src, tmp, {
+			recursive: true,
+			filter: (s) => path.basename(s) !== PROVENANCE_FILE
+		});
+		await rm(dest, {
+			recursive: true,
+			force: true
+		});
+		await rename(tmp, dest);
+	} finally {
+		await rm(tmp, {
+			recursive: true,
+			force: true
+		});
+	}
+};
+const errText = (e) => e instanceof Error ? e.message : String(e);
+/** true when memory.json explicitly declares a formatVersion newer than this tool understands */
+const declaresNewerFormat = async (commonsDir) => {
+	try {
+		const raw = JSON.parse(await readFile(path.join(commonsDir, "memory.json"), "utf8"));
+		const version = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw.formatVersion : void 0;
+		return typeof version === "number" && version > 1;
+	} catch {
+		return false;
+	}
+};
+const materializeSkills = async (options) => {
+	const targetDir = options.targetDir ?? defaultSkillsTarget();
+	const report = {
+		materialized: [],
+		updated: [],
+		removed: [],
+		shadowed: [],
+		restored: [],
+		failed: []
+	};
+	try {
+		if (await declaresNewerFormat(options.commonsDir)) {
+			report.failed.push({
+				name: "(format)",
+				error: "commons format is newer than this roboto-mem understands — run /mem-upgrade"
+			});
+			return report;
+		}
+		const load = await loadSkills(options.commonsDir);
+		const manifest = await readSkillManifest(options.home);
+		for (const { dir, error } of load.errors) report.failed.push({
+			name: dir,
+			error
+		});
+		for (const skill of load.skills) try {
+			const source = path.join(options.commonsDir, skill.dir);
+			const target = path.join(targetDir, skill.name);
+			const managed = manifest.skills[skill.name];
+			const sourceHash = await hashSkillDir(source);
+			if (!managed) {
+				if (await exists(target)) {
+					report.shadowed.push(skill.name);
+					continue;
+				}
+				await copySkill(source, target);
+				manifest.skills[skill.name] = { hash: sourceHash };
+				await writeSkillManifest(options.home, manifest);
+				report.materialized.push(skill.name);
+				continue;
+			}
+			if (!await exists(target)) {
+				await copySkill(source, target);
+				manifest.skills[skill.name] = { hash: sourceHash };
+				await writeSkillManifest(options.home, manifest);
+				report.restored.push(skill.name);
+				continue;
+			}
+			if (await hashSkillDir(target) !== managed.hash) {
+				await copySkill(source, target);
+				manifest.skills[skill.name] = { hash: sourceHash };
+				await writeSkillManifest(options.home, manifest);
+				report.restored.push(skill.name);
+				continue;
+			}
+			if (sourceHash !== managed.hash) {
+				await copySkill(source, target);
+				manifest.skills[skill.name] = { hash: sourceHash };
+				await writeSkillManifest(options.home, manifest);
+				report.updated.push(skill.name);
+			}
+		} catch (e) {
+			report.failed.push({
+				name: skill.name,
+				error: errText(e)
+			});
+		}
+		const present = new Set(load.dirNames);
+		for (const name of Object.keys(manifest.skills)) {
+			if (present.has(name)) continue;
+			try {
+				await rm(path.join(targetDir, name), {
+					recursive: true,
+					force: true
+				});
+				delete manifest.skills[name];
+				await writeSkillManifest(options.home, manifest);
+				report.removed.push(name);
+			} catch (e) {
+				report.failed.push({
+					name,
+					error: errText(e)
+				});
+			}
+		}
+		manifest.materializedAt = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+		await writeSkillManifest(options.home, manifest);
+	} catch (e) {
+		report.failed.push({
+			name: "(materialize)",
+			error: errText(e)
+		});
+	}
+	return report;
+};
+const formatReport = (report) => {
+	const parts = [
+		...report.materialized.length ? [`${report.materialized.length} materialized`] : [],
+		...report.updated.length ? [`${report.updated.length} updated`] : [],
+		...report.removed.length ? [`${report.removed.length} removed`] : [],
+		...report.shadowed.length ? [`shadowed by personal: ${report.shadowed.join(", ")}`] : [],
+		...report.restored.length ? [`restored: ${report.restored.join(", ")}`] : [],
+		...report.failed.length ? [`failed: ${report.failed.map((f) => `${f.name} (${f.error})`).join(", ")}`] : []
+	];
+	return parts.length ? `skills: ${parts.join(", ")}` : void 0;
+};
+//#endregion
 //#region src/core/version.ts
-const VERSION = "0.1.1";
+const VERSION = "0.2.0";
 //#endregion
 //#region src/commands/sync.ts
 const syncRepos = async (config, home) => {
@@ -11967,9 +12314,15 @@ const runSync = async (options) => {
 	const synced = await syncRepos(config, home);
 	const lines = [lineForSync(config.commons, synced.commons)];
 	for (const { url, sync } of synced.overlays) lines.push(lineForSync(url, sync));
+	const skillsLine = synced.commons.ok && !synced.commons.stale ? formatReport(await materializeSkills({
+		commonsDir: synced.commons.dir,
+		home,
+		targetDir: options.skillsTargetDir
+	})) : void 0;
+	const outputLines = skillsLine ? [...lines, skillsLine] : lines;
 	return {
 		exitCode: synced.commons.ok ? 0 : 1,
-		output: lines.join("\n")
+		output: outputLines.join("\n")
 	};
 };
 //#endregion
@@ -12031,6 +12384,12 @@ const runDigest = async (options) => {
 			output: msg
 		};
 	}
+	const skillReport = synced.commons.stale ? void 0 : await materializeSkills({
+		commonsDir: synced.commons.dir,
+		home,
+		targetDir: options.skillsTargetDir
+	});
+	const skillWarnings = skillReport ? [...skillReport.restored.map((name) => `> WARNING: team skill ${name}: restored — local edits were replaced by the team version. Promote changes via PR instead.`), ...skillReport.failed.length ? [`> WARNING: ${skillReport.failed.length} team skill(s) failed to materialize — run roboto-mem status.`] : []] : [];
 	const commonsLoad = await loadMemory(synced.commons.dir);
 	if (!commonsLoad.ok) {
 		if (commonsLoad.reason === "newer-format") return staleResult(hook, home, cwd);
@@ -12079,7 +12438,8 @@ const runDigest = async (options) => {
 			nag
 		}
 	});
-	const fullOutput = overlayWarnings.length ? `${digest}\n${overlayWarnings.join("\n")}` : digest;
+	const allWarnings = [...overlayWarnings, ...skillWarnings];
+	const fullOutput = allWarnings.length ? `${digest}\n${allWarnings.join("\n")}` : digest;
 	if (!isStale) await writeCache(home, cwd, {
 		date: syncedDate,
 		digest: fullOutput
@@ -12222,6 +12582,7 @@ const MEMORY_JSON = `{
 const CODEOWNERS = `# Scope ownership — every Entry needs its scope Owner's approval (tiered review).
 # Org-wide Standards are policy: protect entries/org/ with your standards group.
 entries/org/ @your-org/standards-group
+skills/ @your-org/standards-group
 # entries/squads/web/ @your-org/squad-web
 # entries/stacks/sanity/ @your-org/sanity-guild
 `;
@@ -12238,6 +12599,7 @@ entries/
   squads/<id>/<name>.md  # Squad-specific lessons and patterns
   stacks/<id>/<name>.md  # Stack/technology guidance (e.g. nextjs, sanity)
   projects/<id>/<name>.md # Project-scoped context
+skills/<name>/SKILL.md   # Team Skills — reviewed agent workflows
 \`\`\`
 
 ## Frontmatter fields
@@ -12269,14 +12631,28 @@ the parser rejects them.
 4. Merge → entry is live in all bound project sessions.
 
 Use \`/promote\` in a Claude session to draft a promotion PR from a session lesson.
+
+## Team Skills
+
+\`skills/<name>/\` directories are Team Skills: reusable agent workflows (SKILL.md
+plus support files) that roboto-mem materializes into every teammate's
+\`~/.claude/skills/\` on sync. Vendored skills carry a \`.provenance.json\` pinned to
+an upstream commit — updating one is a new PR via
+\`roboto-mem skill add <owner>/<repo>\`, and the diff shows exactly what changed
+upstream. Review skill PRs like code: watch for exfiltration, network calls, and
+"run this command" patterns. Personal skills with the same name always win on a
+teammate's machine (reported as shadowed, never overwritten).
 `;
-const MEMORY_CI_YML = `# memory-ci — validates entry frontmatter and structure on every PR.
+const MEMORY_CI_YML = `# memory-ci — validates entries and skills on every PR, and on pushes to main
+# so a direct push can never leave main silently broken for every later PR.
 # The roboto-mem CLI is vendored at .roboto-mem/cli.mjs by \`roboto-mem init --commons\`,
 # so this workflow needs no tokens and no network. Update the vendored CLI via a normal PR.
 name: memory-ci
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
   lint:
@@ -12288,7 +12664,7 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Lint entries
+      - name: Lint entries and skills
         run: node .roboto-mem/cli.mjs lint
 `;
 //#endregion
@@ -12328,7 +12704,8 @@ const scaffoldMode = async (dir) => {
 		writeFile$1(path.join(dir, "entries", "org", ".gitkeep"), ""),
 		writeFile$1(path.join(dir, "entries", "squads", ".gitkeep"), ""),
 		writeFile$1(path.join(dir, "entries", "stacks", ".gitkeep"), ""),
-		writeFile$1(path.join(dir, "entries", "projects", ".gitkeep"), "")
+		writeFile$1(path.join(dir, "entries", "projects", ".gitkeep"), ""),
+		writeFile$1(path.join(dir, "skills", ".gitkeep"), "")
 	]);
 	const vendorWarning = await vendorCli(dir);
 	return {
@@ -12344,7 +12721,8 @@ const scaffoldMode = async (dir) => {
 				"entries/org/.gitkeep",
 				"entries/squads/.gitkeep",
 				"entries/stacks/.gitkeep",
-				"entries/projects/.gitkeep"
+				"entries/projects/.gitkeep",
+				"skills/.gitkeep"
 			].map((f) => `  ${f}`),
 			...vendorWarning ? [vendorWarning] : [],
 			"",
@@ -12560,6 +12938,34 @@ const secretFindings = (entries) => {
 		warnings
 	};
 };
+const skillErrorFindings = (errors) => errors.map(({ dir, error }) => `skills/${dir}/SKILL.md: ${error}`);
+const skillSecretFindings = async (repoDir, dirNames) => {
+	const errors = [];
+	const warnings = [];
+	for (const dirName of dirNames) {
+		const abs = path.join(repoDir, "skills", dirName);
+		const symlink = await findSymlink(abs);
+		if (symlink) errors.push(`skills/${dirName}/${symlink}: symbolic links are not allowed in skills`);
+		const files = (await glob(["**/*"], {
+			cwd: abs,
+			dot: true,
+			followSymbolicLinks: false
+		})).filter((f) => f !== PROVENANCE_FILE);
+		files.sort();
+		for (const f of files) {
+			const text = await readFile(path.join(abs, f), "utf8").catch(() => "");
+			for (const finding of scanEntry(text)) {
+				const line = `skills/${dirName}/${f}: [${finding.rule}] ${finding.match}`;
+				if (finding.severity === "error") errors.push(line);
+				else warnings.push(line);
+			}
+		}
+	}
+	return {
+		errors,
+		warnings
+	};
+};
 const runLint = async (options) => {
 	const load = await loadMemory(options.dir);
 	if (!load.ok) return {
@@ -12572,16 +12978,22 @@ const runLint = async (options) => {
 		...overrideFindings(entries),
 		...budgetFindings(entries, budgets)
 	];
+	const skillsLoad = await loadSkills(options.dir);
+	errorLines.push(...skillErrorFindings(skillsLoad.errors));
+	const skillSecrets = await skillSecretFindings(options.dir, skillsLoad.dirNames);
+	errorLines.push(...skillSecrets.errors);
 	const { errors: secretErrors, warnings: secretWarnings } = secretFindings(entries);
 	errorLines.push(...secretErrors);
-	const warningsSection = secretWarnings.length > 0 ? `\nwarnings:\n${secretWarnings.join("\n")}` : "";
+	const allWarnings = [...secretWarnings, ...skillSecrets.warnings];
+	const warningsSection = allWarnings.length > 0 ? `\nwarnings:\n${allWarnings.join("\n")}` : "";
 	if (errorLines.length > 0) return {
 		exitCode: 1,
 		output: `${errorLines.join("\n")}${warningsSection}`
 	};
+	const skillSuffix = skillsLoad.skills.length > 0 ? `, ${skillsLoad.skills.length} skills` : "";
 	return {
 		exitCode: 0,
-		output: `✓ ${entries.length} entries, 0 problems${warningsSection}`
+		output: `✓ ${entries.length} entries${skillSuffix}, 0 problems${warningsSection}`
 	};
 };
 //#endregion
@@ -12622,11 +13034,11 @@ const findSimilar = (draft, candidates) => candidates.map((candidate) => ({
 })).filter(({ score }) => score >= SIMILARITY_THRESHOLD).sort((a, b) => b.score - a.score);
 //#endregion
 //#region src/commands/promote.ts
-const fail = (output) => ({
+const fail$1 = (output) => ({
 	exitCode: 1,
 	output
 });
-const ok = (output) => ({
+const ok$1 = (output) => ({
 	exitCode: 0,
 	output
 });
@@ -12636,41 +13048,41 @@ const compareUrl = (commonsUrl, branch) => {
 	return m ? `https://github.com/${m[1]}/compare/main...${branch}` : void 0;
 };
 const branchName = (scope, name) => `promote/${scope.replace(/\//g, "-")}-${name}`;
-const defaultGhRunner = (args, cwd) => exec("gh", args, { cwd });
+const defaultGhRunner$1 = (args, cwd) => exec("gh", args, { cwd });
 const runPromote = async (options) => {
-	const { cwd, scope, type, name, description, body, author, date, overrides, force = false, home = memoryHome(), ghRunner = defaultGhRunner } = options;
-	if (!isValidScope(scope)) return fail(`Invalid scope "${scope}". Must be org, squad/<s>, stack/<k>, or project/<p>.`);
-	if (!SCOPE_ID_RE.test(name)) return fail(`Invalid name "${name}". Must match /^[a-z0-9][a-z0-9-]*$/.`);
-	if (type !== "standard" && type !== "lesson") return fail(`Invalid type "${type}". Must be "standard" or "lesson".`);
-	if (!DATE_RE.test(date)) return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
-	if (!description.trim()) return fail("description must not be empty.");
-	if (!body.trim()) return fail("body must not be empty.");
-	if (!author.trim()) return fail("author must not be empty.");
+	const { cwd, scope, type, name, description, body, author, date, overrides, force = false, home = memoryHome(), ghRunner = defaultGhRunner$1 } = options;
+	if (!isValidScope(scope)) return fail$1(`Invalid scope "${scope}". Must be org, squad/<s>, stack/<k>, or project/<p>.`);
+	if (!SCOPE_ID_RE.test(name)) return fail$1(`Invalid name "${name}". Must match /^[a-z0-9][a-z0-9-]*$/.`);
+	if (type !== "standard" && type !== "lesson") return fail$1(`Invalid type "${type}". Must be "standard" or "lesson".`);
+	if (!DATE_RE.test(date)) return fail$1(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+	if (!description.trim()) return fail$1("description must not be empty.");
+	if (!body.trim()) return fail$1("body must not be empty.");
+	if (!author.trim()) return fail$1("author must not be empty.");
 	const configResult = await loadConfig(cwd);
-	if (!configResult.ok) return fail(configResult.reason === "newer-config" ? configResult.detail : configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : `Config invalid: ${configResult.detail}`);
+	if (!configResult.ok) return fail$1(configResult.reason === "newer-config" ? configResult.detail : configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : `Config invalid: ${configResult.detail}`);
 	const { commons } = configResult.config;
 	const repoSync = await ensureRepo(commons, home);
-	if (!repoSync.ok) return fail(`Failed to sync commons repo: ${repoSync.error}`);
+	if (!repoSync.ok) return fail$1(`Failed to sync commons repo: ${repoSync.error}`);
 	const { dir: cloneDir } = repoSync;
 	const mem = await loadMemory(cloneDir);
 	if (!mem.ok) {
-		if (mem.reason === "newer-format") return fail(`Memory repo format version ${mem.formatVersion} is newer than supported. Upgrade roboto-mem.`);
-		return fail(`Failed to load memory: ${mem.detail}`);
+		if (mem.reason === "newer-format") return fail$1(`Memory repo format version ${mem.formatVersion} is newer than supported. Upgrade roboto-mem.`);
+		return fail$1(`Failed to load memory: ${mem.detail}`);
 	}
 	const relPath = entryPathForScope(scope, name);
-	if (mem.entries.find((e) => e.file === relPath)) return fail(`Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`);
+	if (mem.entries.find((e) => e.file === relPath)) return fail$1(`Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`);
 	if (!force) {
 		const similar = findSimilar({
 			name,
 			description,
 			body
 		}, mem.entries);
-		if (similar.length > 0) return fail(["Similar entries already exist — use --force to promote anyway:", ...similar.map((m) => `  ${m.candidate.file} (score ${m.score.toFixed(2)})`)].join("\n"));
+		if (similar.length > 0) return fail$1(["Similar entries already exist — use --force to promote anyway:", ...similar.map((m) => `  ${m.candidate.file} (score ${m.score.toFixed(2)})`)].join("\n"));
 	}
 	const findings = scanEntry(`${description}\n${body}`);
 	const errors = findings.filter((f) => f.severity === "error");
 	const warnings = findings.filter((f) => f.severity === "warning");
-	if (errors.length > 0) return fail(["Secret scan failed:", ...errors.map((f) => `  [${f.rule}] ${f.match}`)].join("\n"));
+	if (errors.length > 0) return fail$1(["Secret scan failed:", ...errors.map((f) => `  [${f.rule}] ${f.match}`)].join("\n"));
 	const entry = {
 		name,
 		description,
@@ -12693,13 +13105,13 @@ const runPromote = async (options) => {
 		branch,
 		"main"
 	], { cwd: cloneDir });
-	if (!checkoutResult.ok) return fail(`git checkout failed: ${checkoutResult.stderr}`);
+	if (!checkoutResult.ok) return fail$1(`git checkout failed: ${checkoutResult.stderr}`);
 	await fs.mkdir(path.dirname(absEntryPath), { recursive: true });
 	await fs.writeFile(absEntryPath, serializeEntry(entry), "utf8");
 	const addResult = await exec("git", ["add", relPath], { cwd: cloneDir });
 	if (!addResult.ok) {
 		await gitCleanup();
-		return fail(`git add failed: ${addResult.stderr}`);
+		return fail$1(`git add failed: ${addResult.stderr}`);
 	}
 	const commitResult = await exec("git", [
 		"commit",
@@ -12708,7 +13120,7 @@ const runPromote = async (options) => {
 	], { cwd: cloneDir });
 	if (!commitResult.ok) {
 		await gitCleanup();
-		return fail(`git commit failed: ${commitResult.stderr}`);
+		return fail$1(`git commit failed: ${commitResult.stderr}`);
 	}
 	const pushResult = await exec("git", [
 		"push",
@@ -12718,7 +13130,7 @@ const runPromote = async (options) => {
 	], { cwd: cloneDir });
 	if (!pushResult.ok) {
 		await gitCleanup();
-		return fail(`git push failed: ${pushResult.stderr}`);
+		return fail$1(`git push failed: ${pushResult.stderr}`);
 	}
 	const prResult = await ghRunner([
 		"pr",
@@ -12736,19 +13148,308 @@ const runPromote = async (options) => {
 		...warnings.map((f) => `  [${f.rule}] ${f.match}`)
 	] : [];
 	await exec("git", ["checkout", "main"], { cwd: cloneDir });
-	if (prResult.ok) return ok([
+	if (prResult.ok) return ok$1([
 		`Entry written: ${relPath}`,
 		`Branch: ${branch}`,
 		`PR: ${prResult.stdout.trim()}`,
 		...warningLines
 	].join("\n"));
 	const fallback = compareUrl(commons, branch) ?? `open a PR for branch ${branch} on your git host`;
-	return ok([
+	return ok$1([
 		`Entry written: ${relPath}`,
 		`Branch: ${branch}`,
 		`gh unavailable — ${fallback}`,
 		...warningLines
 	].join("\n"));
+};
+//#endregion
+//#region src/commands/skill.ts
+const fail = (output) => ({
+	exitCode: 1,
+	output
+});
+const ok = (output) => ({
+	exitCode: 0,
+	output
+});
+const defaultGhRunner = (args, cwd) => exec("gh", args, { cwd });
+const OWNER_REPO_RE = /^[\w.-]+\/[\w.-]+$/;
+const normalizeSource = (source) => {
+	if (/^https:\/\/\S+$/.test(source)) return {
+		url: source,
+		label: source.replace(/\.git$/, "")
+	};
+	if (source.startsWith("/") || source.startsWith("file://")) return {
+		url: source,
+		label: source
+	};
+	if (OWNER_REPO_RE.test(source)) return {
+		url: `https://github.com/${source}.git`,
+		label: `github:${source}`
+	};
+};
+const fetchUpstream = async (url, ref) => {
+	const dir = await mkdtemp(path.join(os.tmpdir(), "rm-vendor-"));
+	const cleanup = () => rm(dir, {
+		recursive: true,
+		force: true
+	});
+	const clone = await exec("git", ref ? [
+		"clone",
+		url,
+		dir
+	] : [
+		"clone",
+		"--depth",
+		"1",
+		url,
+		dir
+	], { timeoutMs: 6e4 });
+	if (!clone.ok) {
+		await cleanup();
+		return { error: `git clone failed: ${clone.stderr}` };
+	}
+	if (ref) {
+		const checkout = await exec("git", ["checkout", ref], { cwd: dir });
+		if (!checkout.ok) {
+			await cleanup();
+			return { error: `git checkout ${ref} failed: ${checkout.stderr}` };
+		}
+	}
+	const revParse = await exec("git", ["rev-parse", "HEAD"], { cwd: dir });
+	if (!revParse.ok) {
+		await cleanup();
+		return { error: `git rev-parse failed: ${revParse.stderr}` };
+	}
+	return {
+		dir,
+		sha: revParse.stdout.trim(),
+		cleanup
+	};
+};
+const locateSkillDir = async (cloneDir, skillArg) => {
+	const hasSkillMd = async (rel) => readFile(path.join(cloneDir, rel, "SKILL.md"), "utf8").then(() => true, () => false);
+	if (skillArg) {
+		if (path.isAbsolute(skillArg) || skillArg.includes("\\") || skillArg.split("/").includes("..")) return {
+			ok: false,
+			error: `Invalid --skill "${skillArg}" — must be a skill name or repo-relative path without ".."`
+		};
+		const root = path.resolve(cloneDir) + path.sep;
+		const contained = (rel) => path.resolve(cloneDir, rel).startsWith(root);
+		const candidates = [`skills/${skillArg}`, skillArg].filter(contained);
+		for (const rel of candidates) if (await hasSkillMd(rel)) return {
+			ok: true,
+			relDir: rel,
+			rootOnly: false
+		};
+		return {
+			ok: false,
+			error: `no SKILL.md found at skills/${skillArg}/ or ${skillArg}/ in the upstream repo`
+		};
+	}
+	const found = await glob(["**/SKILL.md"], {
+		cwd: cloneDir,
+		ignore: [".git/**", "node_modules/**"],
+		followSymbolicLinks: false
+	});
+	found.sort();
+	if (found.length === 0) return {
+		ok: false,
+		error: "no SKILL.md found in the upstream repo"
+	};
+	if (found.length > 1) return {
+		ok: false,
+		error: ["multiple skills found — pass --skill <name>:", ...found.map((f) => path.dirname(f)).slice(0, 10).map((n) => `  ${n}`)].join("\n")
+	};
+	const relDir = path.dirname(found[0] ?? "");
+	return relDir === "." ? {
+		ok: true,
+		relDir: ".",
+		rootOnly: true
+	} : {
+		ok: true,
+		relDir,
+		rootOnly: false
+	};
+};
+const scanSkillFiles = async (absDir) => {
+	const files = (await glob(["**/*"], {
+		cwd: absDir,
+		dot: true,
+		ignore: [".git/**"],
+		followSymbolicLinks: false
+	})).filter((f) => f !== PROVENANCE_FILE);
+	files.sort();
+	const errors = [];
+	const warnings = [];
+	for (const f of files) {
+		const text = await readFile(path.join(absDir, f), "utf8").catch(() => "");
+		for (const finding of scanEntry(text)) {
+			const line = `  ${f}: [${finding.rule}] ${finding.match}`;
+			if (finding.severity === "error") errors.push(line);
+			else warnings.push(line);
+		}
+	}
+	return {
+		errors,
+		warnings
+	};
+};
+const submitSkillPr = async (args) => {
+	const repoSync = await ensureRepo(args.commonsUrl, args.home);
+	if (!repoSync.ok) return fail(`Failed to sync commons repo: ${repoSync.error}`);
+	const cloneDir = repoSync.dir;
+	const relDir = `skills/${args.name}`;
+	const absTarget = path.join(cloneDir, relDir);
+	const symlink = await findSymlink(args.sourceDir);
+	if (symlink) return fail(`Refusing to vendor: symbolic link found at ${symlink} — symbolic links are not allowed in vendored skills.`);
+	const scan = await scanSkillFiles(args.sourceDir);
+	if (scan.errors.length > 0) return fail(["Secret scan failed:", ...scan.errors].join("\n"));
+	const existing = await readFile(path.join(absTarget, "SKILL.md"), "utf8").then(() => true, () => false);
+	const branch = `skill/${args.name}`;
+	const gitCleanup = () => exec("git", ["checkout", "main"], { cwd: cloneDir });
+	const checkout = await exec("git", [
+		"checkout",
+		"-B",
+		branch,
+		"main"
+	], { cwd: cloneDir });
+	if (!checkout.ok) return fail(`git checkout failed: ${checkout.stderr}`);
+	await rm(absTarget, {
+		recursive: true,
+		force: true
+	});
+	await mkdir(absTarget, { recursive: true });
+	if (args.skillMdOnly) await cp(path.join(args.sourceDir, "SKILL.md"), path.join(absTarget, "SKILL.md"));
+	else await cp(args.sourceDir, absTarget, {
+		recursive: true,
+		filter: (s) => path.basename(s) !== ".git"
+	});
+	if (args.provenance) await writeFile(path.join(absTarget, PROVENANCE_FILE), `${JSON.stringify(args.provenance, null, 2)}\n`, "utf8");
+	const add = await exec("git", ["add", relDir], { cwd: cloneDir });
+	if (!add.ok) {
+		await gitCleanup();
+		return fail(`git add failed: ${add.stderr}`);
+	}
+	if ((await exec("git", [
+		"diff",
+		"--cached",
+		"--quiet"
+	], { cwd: cloneDir })).ok) {
+		await gitCleanup();
+		return ok(`${relDir} is already up to date — nothing to submit.`);
+	}
+	const commitMsg = `skill(${args.name}): ${args.commitLabel}`;
+	const commit = await exec("git", [
+		"commit",
+		"-m",
+		commitMsg
+	], { cwd: cloneDir });
+	if (!commit.ok) {
+		await gitCleanup();
+		return fail(`git commit failed: ${commit.stderr}`);
+	}
+	const push = await exec("git", [
+		"push",
+		"-u",
+		"origin",
+		branch
+	], { cwd: cloneDir });
+	if (!push.ok) {
+		await gitCleanup();
+		return fail(`git push failed: ${push.stderr}`);
+	}
+	const prResult = await args.ghRunner([
+		"pr",
+		"create",
+		"--title",
+		commitMsg,
+		"--body",
+		`Team skill ${existing ? "update" : "addition"} via roboto-mem.`,
+		"--head",
+		branch
+	], cloneDir);
+	await gitCleanup();
+	const modeLine = existing ? `Skill updated: ${relDir} (existing team skill replaced in this PR)` : `Skill added: ${relDir}`;
+	const rootNote = args.skillMdOnly ? ["Note: upstream skill lives at the repo root — only SKILL.md was vendored."] : [];
+	const warningLines = scan.warnings.length ? [
+		"",
+		"Warnings (non-blocking):",
+		...scan.warnings
+	] : [];
+	if (prResult.ok) return ok([
+		modeLine,
+		...rootNote,
+		`Branch: ${branch}`,
+		`PR: ${prResult.stdout.trim()}`,
+		...warningLines
+	].join("\n"));
+	const fallback = compareUrl(args.commonsUrl, branch) ?? `open a PR for branch ${branch} on your git host`;
+	return ok([
+		modeLine,
+		...rootNote,
+		`Branch: ${branch}`,
+		`gh unavailable — ${fallback}`,
+		...warningLines
+	].join("\n"));
+};
+const runSkillAdd = async (options) => {
+	const { cwd, source, skill, ref, author, date, home = memoryHome(), ghRunner = defaultGhRunner } = options;
+	if (!author.trim()) return fail("author must not be empty.");
+	if (!DATE_RE.test(date)) return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+	const normalized = normalizeSource(source);
+	if (!normalized) return fail(`Unusable source "${source}" — expected owner/repo or an https git URL.`);
+	const configResult = await loadConfig(cwd);
+	if (!configResult.ok) return fail(configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : configResult.detail);
+	const upstream = await fetchUpstream(normalized.url, ref);
+	if ("error" in upstream) return fail(upstream.error);
+	try {
+		const located = await locateSkillDir(upstream.dir, skill);
+		if (!located.ok) return fail(located.error);
+		const sourceDir = path.join(upstream.dir, located.relDir);
+		const fm = parseSkillFrontmatter(await readFile(path.join(sourceDir, "SKILL.md"), "utf8"));
+		if (!fm.ok) return fail(`upstream SKILL.md: ${fm.error}`);
+		const provenance = {
+			source: normalized.label,
+			ref: upstream.sha,
+			path: located.relDir,
+			vendoredAt: date,
+			vendoredBy: author
+		};
+		return await submitSkillPr({
+			name: fm.name,
+			sourceDir,
+			skillMdOnly: located.rootOnly,
+			provenance,
+			commonsUrl: configResult.config.commons,
+			home,
+			ghRunner,
+			commitLabel: `vendor ${normalized.label}@${upstream.sha.slice(0, 7)}`
+		});
+	} finally {
+		await upstream.cleanup();
+	}
+};
+const runSkillPromote = async (options) => {
+	const { cwd, name, author, date, home = memoryHome(), skillsRoot = defaultSkillsTarget(), ghRunner = defaultGhRunner } = options;
+	if (!author.trim()) return fail("author must not be empty.");
+	if (!DATE_RE.test(date)) return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+	const configResult = await loadConfig(cwd);
+	if (!configResult.ok) return fail(configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : configResult.detail);
+	const sourceDir = path.join(skillsRoot, name);
+	const raw = await readFile(path.join(sourceDir, "SKILL.md"), "utf8").catch(() => void 0);
+	if (raw === void 0) return fail(`No personal skill at ${sourceDir} (expected SKILL.md).`);
+	const fm = parseSkillFrontmatter(raw);
+	if (!fm.ok) return fail(`SKILL.md: ${fm.error}`);
+	if (fm.name !== name) return fail(`frontmatter name "${fm.name}" must match the skill directory "${name}".`);
+	return submitSkillPr({
+		name,
+		sourceDir,
+		commonsUrl: configResult.config.commons,
+		home,
+		ghRunner,
+		commitLabel: "promote from personal memory"
+	});
 };
 //#endregion
 //#region src/commands/status.ts
@@ -12791,6 +13492,46 @@ const runStatus = async (options) => {
 			lines.push(`${standards} standards, ${lessons} lessons`);
 			if (mem.errors.length > 0) lines.push(`parse errors: ${mem.errors.length}`);
 			lines.push(`formatVersion ${mem.formatVersion}`);
+			const skillsLoad = await loadSkills(cloneDir);
+			if (skillsLoad.skills.length === 0 && skillsLoad.errors.length === 0) lines.push("skills: none");
+			else {
+				const manifest = await readSkillManifest(home);
+				const target = options.skillsTargetDir ?? defaultSkillsTarget();
+				const classified = await Promise.all(skillsLoad.skills.map(async (skill) => {
+					try {
+						const managed = manifest.skills[skill.name];
+						const targetPath = path.join(target, skill.name);
+						if (!managed) return {
+							name: skill.name,
+							state: await cloneExists(targetPath) ? "shadowed" : "pending"
+						};
+						const drifted = await cloneExists(targetPath) && await hashSkillDir(targetPath) !== managed.hash;
+						return {
+							name: skill.name,
+							state: drifted ? "drifted" : "materialized"
+						};
+					} catch {
+						return {
+							name: skill.name,
+							state: "invalid"
+						};
+					}
+				}));
+				const names = (s) => classified.filter((c) => c.state === s).map((c) => c.name);
+				const count = (s) => classified.filter((c) => c.state === s).length;
+				const shadowed = names("shadowed");
+				const drifted = names("drifted");
+				const invalidCount = skillsLoad.errors.length + classified.filter((c) => c.state === "invalid").length;
+				const segments = [
+					`${count("materialized")} materialized`,
+					...count("pending") ? [`${count("pending")} pending sync`] : [],
+					...shadowed.length ? [`shadowed by personal: ${shadowed.join(", ")}`] : [],
+					...drifted.length ? [`drifted (sync will restore): ${drifted.join(", ")}`] : [],
+					...invalidCount ? [`${invalidCount} invalid`] : []
+				];
+				lines.push(`skills: ${segments.join(", ")}`);
+				if (manifest.materializedAt) lines.push(`skills last materialized: ${manifest.materializedAt}`);
+			}
 		}
 	}
 	const cached = await readCache(home, cwd);
@@ -13077,6 +13818,80 @@ const statusCmd = defineCommand({
 		emit(await runStatus({ cwd: process.cwd() }));
 	}
 });
+const skillCmd = defineCommand({
+	meta: {
+		name: "skill",
+		description: "Team Skills: vendor or promote skills into the commons"
+	},
+	subCommands: {
+		add: defineCommand({
+			meta: {
+				name: "add",
+				description: "Vendor a skill from GitHub/skills.sh into the commons (opens a PR)"
+			},
+			args: {
+				source: {
+					type: "positional",
+					description: "owner/repo or git URL"
+				},
+				skill: {
+					type: "string",
+					description: "Skill name when the repo has several"
+				},
+				ref: {
+					type: "string",
+					description: "Upstream ref to pin (default: HEAD)"
+				},
+				author: {
+					type: "string",
+					description: "Author (github handle)"
+				},
+				date: {
+					type: "string",
+					description: "Date (YYYY-MM-DD)"
+				}
+			},
+			async run({ args }) {
+				emit(await runSkillAdd({
+					cwd: process.cwd(),
+					source: args.source ?? "",
+					skill: args.skill,
+					ref: args.ref,
+					author: args.author ?? "",
+					date: args.date ?? todayYMD()
+				}));
+			}
+		}),
+		promote: defineCommand({
+			meta: {
+				name: "promote",
+				description: "Promote a personal skill (~/.claude/skills/<name>) into the commons (opens a PR)"
+			},
+			args: {
+				name: {
+					type: "positional",
+					description: "Skill directory name"
+				},
+				author: {
+					type: "string",
+					description: "Author (github handle)"
+				},
+				date: {
+					type: "string",
+					description: "Date (YYYY-MM-DD)"
+				}
+			},
+			async run({ args }) {
+				emit(await runSkillPromote({
+					cwd: process.cwd(),
+					name: args.name ?? "",
+					author: args.author ?? "",
+					date: args.date ?? todayYMD()
+				}));
+			}
+		})
+	}
+});
 const main = defineCommand({
 	meta: {
 		name: "roboto-mem",
@@ -13089,7 +13904,8 @@ const main = defineCommand({
 		digest: digestCmd,
 		promote: promoteCmd,
 		lint: lintCmd,
-		status: statusCmd
+		status: statusCmd,
+		skill: skillCmd
 	}
 });
 if ((() => {

@@ -1,3 +1,5 @@
+import { mkdir, symlink, writeFile } from "node:fs/promises";
+import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runLint } from "../../src/commands/lint.js";
 import {
@@ -193,5 +195,121 @@ Contact support@example.com for help.`,
     const lines = result.output.trim().split("\n").filter(Boolean);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("memory.json");
+  });
+
+  // Helper for creating skills alongside entries
+  const writeManifestAndSkill = async (
+    dir: string,
+    skillDir: string,
+    skillMd: string,
+  ): Promise<void> => {
+    await writeFile(
+      path.join(dir, "memory.json"),
+      JSON.stringify({
+        formatVersion: 1,
+        budgets: { default: 2000, org: 4000 },
+      }),
+      "utf8",
+    );
+    await mkdir(path.join(dir, "skills", skillDir), { recursive: true });
+    await writeFile(
+      path.join(dir, "skills", skillDir, "SKILL.md"),
+      skillMd,
+      "utf8",
+    );
+  };
+
+  it("skills: valid skill counts in the summary", async () => {
+    const dir = await makeTmp();
+    await writeManifestAndSkill(
+      dir,
+      "grill-me",
+      "---\nname: grill-me\ndescription: d\n---\nbody",
+    );
+
+    const result = await runLint({ dir });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("1 skills");
+  });
+
+  it("skills: frontmatter mismatch and secrets fail the lint", async () => {
+    const dir = await makeTmp();
+    await writeManifestAndSkill(
+      dir,
+      "bad-skill",
+      "---\nname: other-name\ndescription: d\n---\nbody",
+    );
+    await mkdir(path.join(dir, "skills", "leaky"), { recursive: true });
+    await writeFile(
+      path.join(dir, "skills", "leaky", "SKILL.md"),
+      `---\nname: leaky\ndescription: d\n---\ntoken: "ghp_${"a".repeat(36)}"`,
+      "utf8",
+    );
+
+    const result = await runLint({ dir });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("bad-skill");
+    expect(result.output).toContain("github-token");
+  });
+
+  it("skills: a symlink inside a skill dir fails the lint", async () => {
+    const dir = await makeTmp();
+    await writeManifestAndSkill(
+      dir,
+      "sneaky",
+      "---\nname: sneaky\ndescription: d\n---\nbody",
+    );
+    await symlink("/etc", path.join(dir, "skills", "sneaky", "escape"));
+
+    const result = await runLint({ dir });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("symbolic link");
+  });
+
+  it("skills: secrets are scanned even when the skill fails validation", async () => {
+    const dir = await makeTmp();
+    await writeManifestAndSkill(dir, "broken", "no frontmatter at all");
+    await writeFile(
+      path.join(dir, "skills", "broken", "notes.md"),
+      `token: "ghp_${"b".repeat(36)}"`,
+      "utf8",
+    );
+
+    const result = await runLint({ dir });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("skills/broken/notes.md");
+    expect(result.output).toContain("github-token");
+  });
+
+  it("skills: warning-severity findings land in the warnings section on exit 0", async () => {
+    const dir = await makeTmp();
+    await writeManifestAndSkill(
+      dir,
+      "mailer",
+      "---\nname: mailer\ndescription: d\n---\ncontact hrithik@example.com for access",
+    );
+
+    const result = await runLint({ dir });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("warnings:");
+    expect(result.output).toContain("skills/mailer/SKILL.md");
+    expect(result.output).toContain("[email]");
+  });
+
+  it("skills and entries combined summary format", async () => {
+    const fixture = await makeFixture();
+    // Add one skill to the fixture
+    await mkdir(path.join(fixture.workdir, "skills", "grill-me"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(fixture.workdir, "skills", "grill-me", "SKILL.md"),
+      "---\nname: grill-me\ndescription: d\n---\nbody",
+      "utf8",
+    );
+
+    const result = await runLint({ dir: fixture.workdir });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("✓ 3 entries, 1 skills, 0 problems");
   });
 });

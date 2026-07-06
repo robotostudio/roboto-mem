@@ -184,6 +184,22 @@ describe("init command", () => {
     );
     expect(workflow).toContain("node .roboto-mem/cli.mjs lint");
     expect(workflow).not.toContain("npx");
+    expect(workflow).toContain("pull_request:");
+    expect(workflow).toContain("push:");
+    expect(workflow).toContain("branches: [main]");
+  });
+
+  it("scaffold: creates skills/ with gitkeep and a CODEOWNERS line", async () => {
+    const dir = await makeDir();
+    const result = await runInit({ dir, scaffoldCommons: true });
+    expect(result.exitCode).toBe(0);
+    await expect(
+      fs.access(path.join(dir, "skills", ".gitkeep")),
+    ).resolves.toBeUndefined();
+    const codeowners = await fs.readFile(path.join(dir, "CODEOWNERS"), "utf8");
+    expect(codeowners).toContain("skills/ @your-org/standards-group");
+    const readme = await fs.readFile(path.join(dir, "README.md"), "utf8");
+    expect(readme).toContain("## Team Skills");
   });
 
   // 6. scaffold refuses second run

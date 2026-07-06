@@ -44,6 +44,17 @@ _Avoid_: learning, instinct, pattern
 The explicit, teammate-reviewed act of moving a Lesson from one person's Personal Memory into Team Memory. Nothing enters Team Memory unreviewed — Standards are authored directly, Lessons are promoted, and both pass a second pair of eyes.
 _Avoid_: sync, auto-share, publish
 
+**Skill**:
+A reusable agent workflow (a `SKILL.md` directory) shared through Team Memory. Where an Entry is knowledge, a Skill is a capability. Enters the Commons only via reviewed PR.
+_Avoid_: command, macro, prompt
+
+**Vendoring**:
+Copying a third-party skill into the Commons pinned at an upstream commit. Upstream changes never flow in automatically; re-vendoring is a new reviewed PR.
+_Avoid_: installing, mirroring
+
+**Materialization**:
+Sync writing team skills into `~/.claude/skills/` so Claude Code discovers them. Only manifest-owned directories are ever touched.
+
 **Digest**:
 The scope-filtered view of Team Memory a session receives at start: Standards in full, Lessons as a one-line index expanded on demand.
 _Avoid_: context dump, bundle, snapshot
@@ -53,7 +64,7 @@ An individual's local Claude Code memory. Private by default; never leaves the m
 _Avoid_: local memory, user memory
 
 **Sync**:
-Content propagation: merged Entries reaching teammates' sessions by pulling the Team Memory repo. Changes what agents know, never how the tool behaves.
+Content propagation: merged Entries and Team Skills reaching teammates' sessions by pulling the Team Memory repo. Changes what agents know and which team skills they carry, never how the tool behaves.
 _Avoid_: update (ambiguous), refresh
 
 **Upgrade**:

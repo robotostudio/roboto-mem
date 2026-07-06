@@ -7,6 +7,7 @@ import { runDigest } from "./commands/digest.js";
 import { runInit } from "./commands/init.js";
 import { runLint } from "./commands/lint.js";
 import { runPromote } from "./commands/promote.js";
+import { runSkillAdd, runSkillPromote } from "./commands/skill.js";
 import { runStatus } from "./commands/status.js";
 import { runSync } from "./commands/sync.js";
 import { exec } from "./core/exec.js";
@@ -201,6 +202,65 @@ const statusCmd = defineCommand({
   },
 });
 
+const skillAddCmd = defineCommand({
+  meta: {
+    name: "add",
+    description:
+      "Vendor a skill from GitHub/skills.sh into the commons (opens a PR)",
+  },
+  args: {
+    source: { type: "positional", description: "owner/repo or git URL" },
+    skill: {
+      type: "string",
+      description: "Skill name when the repo has several",
+    },
+    ref: { type: "string", description: "Upstream ref to pin (default: HEAD)" },
+    author: { type: "string", description: "Author (github handle)" },
+    date: { type: "string", description: "Date (YYYY-MM-DD)" },
+  },
+  async run({ args }) {
+    const result = await runSkillAdd({
+      cwd: process.cwd(),
+      source: (args.source as string | undefined) ?? "",
+      skill: args.skill as string | undefined,
+      ref: args.ref as string | undefined,
+      author: (args.author as string | undefined) ?? "",
+      date: (args.date as string | undefined) ?? todayYMD(),
+    });
+    emit(result);
+  },
+});
+
+const skillPromoteCmd = defineCommand({
+  meta: {
+    name: "promote",
+    description:
+      "Promote a personal skill (~/.claude/skills/<name>) into the commons (opens a PR)",
+  },
+  args: {
+    name: { type: "positional", description: "Skill directory name" },
+    author: { type: "string", description: "Author (github handle)" },
+    date: { type: "string", description: "Date (YYYY-MM-DD)" },
+  },
+  async run({ args }) {
+    const result = await runSkillPromote({
+      cwd: process.cwd(),
+      name: (args.name as string | undefined) ?? "",
+      author: (args.author as string | undefined) ?? "",
+      date: (args.date as string | undefined) ?? todayYMD(),
+    });
+    emit(result);
+  },
+});
+
+const skillCmd = defineCommand({
+  meta: {
+    name: "skill",
+    description: "Team Skills: vendor or promote skills into the commons",
+  },
+  subCommands: { add: skillAddCmd, promote: skillPromoteCmd },
+});
+
 export const main = defineCommand({
   meta: {
     name: "roboto-mem",
@@ -214,6 +274,7 @@ export const main = defineCommand({
     promote: promoteCmd,
     lint: lintCmd,
     status: statusCmd,
+    skill: skillCmd,
   },
 });
 

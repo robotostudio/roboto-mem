@@ -42,10 +42,16 @@ describe("validatePromoteType", () => {
 });
 
 describe("main subCommands structure", () => {
-  it("has exactly 6 subcommand keys", () => {
+  it("has exactly 7 subcommand keys", () => {
     const keys = Object.keys(main.subCommands ?? {});
     expect(keys.sort()).toEqual(
-      ["digest", "init", "lint", "promote", "status", "sync"].sort(),
+      ["digest", "init", "lint", "promote", "skill", "status", "sync"].sort(),
     );
+  });
+});
+
+describe("skill subcommand", () => {
+  it("is registered on main", () => {
+    expect(main.subCommands).toHaveProperty("skill");
   });
 });

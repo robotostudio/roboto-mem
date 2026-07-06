@@ -77,6 +77,7 @@ const scaffoldMode = async (dir: string): Promise<CommandResult> => {
     writeFile(path.join(dir, "entries", "squads", ".gitkeep"), ""),
     writeFile(path.join(dir, "entries", "stacks", ".gitkeep"), ""),
     writeFile(path.join(dir, "entries", "projects", ".gitkeep"), ""),
+    writeFile(path.join(dir, "skills", ".gitkeep"), ""),
   ]);
   const vendorWarning = await vendorCli(dir);
 
@@ -90,6 +91,7 @@ const scaffoldMode = async (dir: string): Promise<CommandResult> => {
     "entries/squads/.gitkeep",
     "entries/stacks/.gitkeep",
     "entries/projects/.gitkeep",
+    "skills/.gitkeep",
   ];
 
   return {

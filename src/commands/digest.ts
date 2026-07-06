@@ -1,6 +1,7 @@
 import { readCache, writeCache } from "../core/cache.js";
 import { loadConfig } from "../core/config.js";
 import { compileDigest } from "../core/digest.js";
+import { materializeSkills } from "../core/materialize.js";
 import { FORMAT_VERSION, loadMemory, memoryHome } from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
@@ -13,6 +14,7 @@ export interface DigestOptions {
   home?: string;
   nag?: string;
   today?: string;
+  skillsTargetDir?: string;
 }
 
 const todayString = (): string => new Date().toISOString().slice(0, 10);
@@ -84,6 +86,29 @@ export const runDigest = async (
     if (hook) return hookResult(msg);
     return { exitCode: 1, output: msg };
   }
+
+  // Step 2b: materialize team skills (best-effort; fresh sync only)
+  const skillReport = synced.commons.stale
+    ? undefined
+    : await materializeSkills({
+        commonsDir: synced.commons.dir,
+        home,
+        targetDir: options.skillsTargetDir,
+      });
+
+  const skillWarnings: string[] = skillReport
+    ? [
+        ...skillReport.restored.map(
+          (name) =>
+            `> WARNING: team skill ${name}: restored — local edits were replaced by the team version. Promote changes via PR instead.`,
+        ),
+        ...(skillReport.failed.length
+          ? [
+              `> WARNING: ${skillReport.failed.length} team skill(s) failed to materialize — run roboto-mem status.`,
+            ]
+          : []),
+      ]
+    : [];
 
   // Step 3: load commons memory
   const commonsLoad = await loadMemory(synced.commons.dir);
@@ -157,8 +182,9 @@ export const runDigest = async (
     },
   });
 
-  const fullOutput = overlayWarnings.length
-    ? `${digest}\n${overlayWarnings.join("\n")}`
+  const allWarnings = [...overlayWarnings, ...skillWarnings];
+  const fullOutput = allWarnings.length
+    ? `${digest}\n${allWarnings.join("\n")}`
     : digest;
 
   // Step 7: write cache only when sync was fresh

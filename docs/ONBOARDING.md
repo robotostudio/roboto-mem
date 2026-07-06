@@ -13,4 +13,6 @@ Both repos are public, so there's nothing to request access to and no SSH to set
 
 Got a rule worth keeping? Type `/promote` and describe the rule. It opens a PR for review. The rulebook itself lives at github.com/robotostudio/team-memory.
 
+Skills work the same way: `/skill-add` proposes one (from GitHub or your own `~/.claude/skills/`), and once merged it lands on every teammate's machine at their next session.
+
 Want the long version, with a short video for each step? See [INSTRUCTIONS.md](INSTRUCTIONS.md).

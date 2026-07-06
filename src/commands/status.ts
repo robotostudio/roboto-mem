@@ -1,14 +1,19 @@
 import { access } from "node:fs/promises";
+import * as path from "node:path";
 import { readCache } from "../core/cache.js";
 import { loadConfig } from "../core/config.js";
+import { defaultSkillsTarget } from "../core/materialize.js";
 import { loadMemory, memoryHome, repoDirFor } from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
+import { loadSkills } from "../core/skill.js";
+import { hashSkillDir, readSkillManifest } from "../core/skill-manifest.js";
 import type { CommandResult } from "../core/types.js";
 import { VERSION } from "../core/version.js";
 
 export interface StatusOptions {
   cwd: string;
   home?: string;
+  skillsTargetDir?: string;
 }
 
 const cloneExists = async (dir: string): Promise<boolean> =>
@@ -88,6 +93,65 @@ export const runStatus = async (
         lines.push(`parse errors: ${mem.errors.length}`);
       }
       lines.push(`formatVersion ${mem.formatVersion}`);
+
+      const skillsLoad = await loadSkills(cloneDir);
+      if (skillsLoad.skills.length === 0 && skillsLoad.errors.length === 0) {
+        lines.push("skills: none");
+      } else {
+        const manifest = await readSkillManifest(home);
+        const target = options.skillsTargetDir ?? defaultSkillsTarget();
+        const classified = await Promise.all(
+          skillsLoad.skills.map(async (skill) => {
+            try {
+              const managed = manifest.skills[skill.name];
+              const targetPath = path.join(target, skill.name);
+              if (!managed) {
+                return {
+                  name: skill.name,
+                  state: (await cloneExists(targetPath))
+                    ? ("shadowed" as const)
+                    : ("pending" as const),
+                };
+              }
+              const drifted =
+                (await cloneExists(targetPath)) &&
+                (await hashSkillDir(targetPath)) !== managed.hash;
+              return {
+                name: skill.name,
+                state: drifted
+                  ? ("drifted" as const)
+                  : ("materialized" as const),
+              };
+            } catch {
+              return { name: skill.name, state: "invalid" as const };
+            }
+          }),
+        );
+        const names = (s: "shadowed" | "drifted"): string[] =>
+          classified.filter((c) => c.state === s).map((c) => c.name);
+        const count = (s: "materialized" | "pending"): number =>
+          classified.filter((c) => c.state === s).length;
+        const shadowed = names("shadowed");
+        const drifted = names("drifted");
+        const invalidCount =
+          skillsLoad.errors.length +
+          classified.filter((c) => c.state === "invalid").length;
+        const segments = [
+          `${count("materialized")} materialized`,
+          ...(count("pending") ? [`${count("pending")} pending sync`] : []),
+          ...(shadowed.length
+            ? [`shadowed by personal: ${shadowed.join(", ")}`]
+            : []),
+          ...(drifted.length
+            ? [`drifted (sync will restore): ${drifted.join(", ")}`]
+            : []),
+          ...(invalidCount ? [`${invalidCount} invalid`] : []),
+        ];
+        lines.push(`skills: ${segments.join(", ")}`);
+        if (manifest.materializedAt) {
+          lines.push(`skills last materialized: ${manifest.materializedAt}`);
+        }
+      }
     }
   }
 

@@ -1,5 +1,8 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runStatus } from "../../src/commands/status.js";
+import { runSync } from "../../src/commands/sync.js";
 import { writeCache } from "../../src/core/cache.js";
 import { saveConfig } from "../../src/core/config.js";
 import { ensureRepo } from "../../src/core/memory-repo.js";
@@ -166,5 +169,63 @@ describe("status — workspace scopes", () => {
     expect(result.output).toContain("apps/studio: stack/sanity");
     expect(result.output).toContain("stack/nextjs");
     expect(result.output).toContain("stack/sanity");
+  });
+});
+
+// 7. skills picture: none, and classification of materialized/shadowed/drifted
+describe("status — skills", () => {
+  const SKILL_CONFIG = {
+    configVersion: 1 as const,
+    overlays: [] as string[],
+    project: "demo",
+    squads: [] as string[],
+    workspaces: {},
+  };
+
+  it("reports skills: none when the commons has no skills", async () => {
+    const cwd = await mkTmp();
+    const fixtureRoot = await mkTmp();
+    const home = await mkTmp();
+    const fixture = await makeCommonsFixture(fixtureRoot);
+    await saveConfig(cwd, { ...SKILL_CONFIG, commons: fixture.remoteUrl });
+    await runSync({ cwd, home });
+
+    const result = await runStatus({ cwd, home });
+    expect(result.output).toContain("skills: none");
+  });
+
+  it("classifies materialized, shadowed, and drifted skills", async () => {
+    const cwd = await mkTmp();
+    const fixtureRoot = await mkTmp();
+    const home = await mkTmp();
+    const target = await mkTmp();
+    const fixture = await makeCommonsFixture(fixtureRoot);
+    await pushEntry(
+      fixture,
+      "skills/one/SKILL.md",
+      "---\nname: one\ndescription: d\n---\nbody",
+    );
+    await pushEntry(
+      fixture,
+      "skills/two/SKILL.md",
+      "---\nname: two\ndescription: d\n---\nbody",
+    );
+    await saveConfig(cwd, { ...SKILL_CONFIG, commons: fixture.remoteUrl });
+
+    // "two" exists personally BEFORE the first sync → shadowed
+    await mkdir(path.join(target, "two"), { recursive: true });
+    await writeFile(path.join(target, "two", "SKILL.md"), "personal", "utf8");
+
+    await runSync({ cwd, home, skillsTargetDir: target });
+
+    // drift "one" after materialization
+    await writeFile(path.join(target, "one", "SKILL.md"), "edited", "utf8");
+
+    const result = await runStatus({ cwd, home, skillsTargetDir: target });
+    expect(result.output).toContain("shadowed by personal: two");
+    expect(result.output).toContain("drifted (sync will restore): one");
+    expect(result.output).toMatch(
+      /skills last materialized: \d{4}-\d{2}-\d{2}/,
+    );
   });
 });

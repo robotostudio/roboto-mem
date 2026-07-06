@@ -1,5 +1,6 @@
 import type { RepoConfig } from "../core/config.js";
 import { loadConfig } from "../core/config.js";
+import { formatReport, materializeSkills } from "../core/materialize.js";
 import type { RepoSync } from "../core/memory-repo.js";
 import { ensureRepo, memoryHome } from "../core/memory-repo.js";
 import type { CommandResult } from "../core/types.js";
@@ -29,6 +30,7 @@ export const syncRepos = async (
 export interface SyncOptions {
   cwd: string;
   home?: string;
+  skillsTargetDir?: string;
 }
 
 const lineForSync = (url: string, sync: RepoSync): string => {
@@ -56,6 +58,18 @@ export const runSync = async (options: SyncOptions): Promise<CommandResult> => {
     lines.push(lineForSync(url, sync));
   }
 
+  const skillsLine =
+    synced.commons.ok && !synced.commons.stale
+      ? formatReport(
+          await materializeSkills({
+            commonsDir: synced.commons.dir,
+            home,
+            targetDir: options.skillsTargetDir,
+          }),
+        )
+      : undefined;
+  const outputLines = skillsLine ? [...lines, skillsLine] : lines;
+
   const exitCode = synced.commons.ok ? 0 : 1;
-  return { exitCode, output: lines.join("\n") };
+  return { exitCode, output: outputLines.join("\n") };
 };

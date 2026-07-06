@@ -31,6 +31,7 @@ The notebook lives in a git repository. Git is just a filing cabinet that rememb
 | **Scope** | The label that says who a page applies to: the whole org, one squad, one tech stack, or one project. |
 | **Sync** | Fetching the newest version of the notebook to your machine. |
 | **Promotion** | Proposing a new page. It creates a review request; a human approves it. |
+| **Skill** | A reusable workflow your assistant can follow — a folder with a `SKILL.md` inside. Synced onto every teammate's machine. |
 | **Overlay** | A *second* notebook added on top of the main one. See [two repos](#can-i-use-two-git-repos-as-memory-yes). |
 
 ## Part 1 — You just joined the team
@@ -157,6 +158,30 @@ The repo's own robot checker (the same `lint` the team runs) verifies your edit 
 
 [▶ Watch: the checker catching a bad page, then passing a fixed one](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/10-lint.mp4)
 
+## Part 7 — Give your assistant new skills
+
+Entries tell your assistant what to *know*. A **Skill** teaches it how to *do* something — a reusable workflow like a review checklist or a deploy routine, stored as a folder with a `SKILL.md` file inside.
+
+Team Skills live in the memory repo under `skills/`, and sync copies them into `~/.claude/skills/` on your machine, where Claude Code discovers them automatically. Merge a skill once and every teammate's assistant has it by their next session — nobody runs an install.
+
+Three ways in, all reviewed like every page:
+
+| You want to | Do this |
+|---|---|
+| Adopt a skill from GitHub or skills.sh | `npx roboto-mem skill add owner/repo --skill name` |
+| Share a skill you already use personally | `npx roboto-mem skill promote my-skill` — reads `~/.claude/skills/my-skill/` |
+| Write one from scratch | Open a PR adding `skills/<name>/SKILL.md` to the memory repo |
+
+Easier route: inside Claude Code, type `/skill-add` — it works out which of the first two you mean and confirms before opening the PR.
+
+Worth knowing:
+
+- Adopted skills are **pinned** to the exact upstream commit. Upstream changes never flow in by themselves; running `skill add` again proposes the update, and the PR diff shows exactly what changed upstream.
+- **Your personal skills always win.** A skill you already have in `~/.claude/skills/` is never overwritten — the team version is skipped, and `status` lists it as `shadowed by personal`.
+- Don't edit the synced copy in `~/.claude/skills/` — the next sync restores the team version (and warns you). To change a team skill for everyone, edit it in the memory repo through a PR.
+- Delete a skill from the memory repo and the next sync removes it from every machine too.
+- Skills are instructions your assistant follows, so reviewers read skill PRs like code — the usual rule applies: nothing enters without a human approving it.
+
 ## Can I use two git repos as memory? (Yes)
 
 This is called an **Overlay**, and it's built for agencies: your company has one notebook (the Commons), and a client engagement has its own extra notebook. Projects for that client read *both*.
@@ -208,6 +233,7 @@ It creates the folder structure, a reviewers file (who approves pages), and a ro
 | `Secret scan failed: [aws-access-key] …` | Your page contains something that looks like a real key. | Replace it with a placeholder like `<your-access-key>`. Placeholders in angle brackets pass. |
 | `Malformed YAML frontmatter` | The block between the `---` lines at the top of an entry is broken. | Compare with any existing entry; watch out for `:` inside the description line. |
 | `not synced yet — run roboto-mem sync` | You linked the project but never fetched the notebook. | Run `npx roboto-mem sync`. |
+| `team skill …: restored — local edits were replaced` | You edited a synced team skill under `~/.claude/skills/`; sync put the team version back. | Make the change in the memory repo via a PR instead — that's how it reaches everyone. |
 | `command not found: roboto-mem` | The CLI isn't installed globally. | Use `npx roboto-mem …`, or install once with `npm i -g roboto-mem`. |
 
 ## Questions people actually ask
@@ -216,7 +242,7 @@ It creates the folder structure, a reviewers file (who approves pages), and a ro
 To *read* the memory: no — install the plugin and you're done. To *add* a page: also no — `promote` does the git work for you. Only editing existing pages touches GitHub directly, and the website's edit button is enough.
 
 **Where does it keep things on my computer?**
-In `~/.roboto-mem` — a cached copy of each memory repo plus one small state file. Delete it any time; the next sync rebuilds it.
+In `~/.roboto-mem` — a cached copy of each memory repo plus one small state file. Team skills are additionally copied into `~/.claude/skills/` so Claude Code can find them. Delete `~/.roboto-mem` any time; the next sync rebuilds it.
 
 **Is my code sent anywhere?**
 No. The tool only *pulls* from your memory repo over git. There's no server, no telemetry, no account. The only thing that ever leaves your machine is a page you explicitly promote.
