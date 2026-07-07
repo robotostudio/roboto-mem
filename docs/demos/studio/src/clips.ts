@@ -64,6 +64,16 @@ export const CLIPS: readonly Clip[] = [
     title: "Two memory repos",
     caption: "Company Commons plus a client Overlay — one digest, both sources.",
   },
+  {
+    id: "13-skill-add",
+    title: "Team Skills — adopt once",
+    caption: "An upstream skill enters the Commons pinned at a commit — validated, scanned, PR'd.",
+  },
+  {
+    id: "14-skill-sync",
+    title: "Team Skills — everyone has it",
+    caption: "Sync materializes merged skills into ~/.claude/skills on every teammate's machine.",
+  },
 ];
 
 export const HERO_CLIP_IDS: readonly string[] = [

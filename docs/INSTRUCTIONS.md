@@ -174,6 +174,8 @@ Three ways in, all reviewed like every page:
 
 Easier route: inside Claude Code, type `/skill-add` — it works out which of the first two you mean and confirms before opening the PR.
 
+[▶ Watch: adopting a skill](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/13-skill-add.mp4) · [▶ Watch: sync delivering it to a teammate](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/14-skill-sync.mp4)
+
 Worth knowing:
 
 - Adopted skills are **pinned** to the exact upstream commit. Upstream changes never flow in by themselves; running `skill add` again proposes the update, and the PR diff shows exactly what changed upstream.

@@ -6,7 +6,7 @@ Every feature, demonstrated against a real (local) Commons. Each clip is a scrip
      `gh release upload` after the release exists; until then render locally
      into docs/demos/{gif,mp4} (gitignored) and view from disk. -->
 
-The demos run in a throwaway world at `/tmp/roboto-mem-demo` — a file-based Commons, a bound project (`acme-web`), and an unbound one (`demo-app`). Nothing touches your real `~/.roboto-mem` or git config. `teammate-push` is a world-local helper that commits a Standard to the Commons, standing in for a colleague.
+The demos run in a throwaway world at `/tmp/roboto-mem-demo` — a file-based Commons, a bound project (`acme-web`), and an unbound one (`demo-app`). Nothing touches your real `~/.roboto-mem` or git config. `teammate-push` is a world-local helper that commits a Standard to the Commons, standing in for a colleague; `teammate-add-skill` does the same with a Team Skill.
 
 ## 1. Scaffold the Commons
 
@@ -112,6 +112,22 @@ A project can read a second memory repo on top of the Commons (agency case: comp
 A dead VPN or a git-host outage doesn't take your sessions down. With a cache present, sync reports `stale (offline?)` and the digest keeps working from the last good copy (honestly labelled `synced unknown`). Only a missing cache is a real failure.
 
 ![sync resilience](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/04-sync-resilience.gif)
+
+## 12. Team Skills — vendor once
+
+Skills travel through the same reviewed pipeline as entries. `skill add` clones the upstream repo, pins the exact commit into `.provenance.json`, validates the skill, runs the secret scan, and opens a PR on the Commons. Running it again later is the update path — the PR diff shows exactly what changed upstream.
+
+```sh
+roboto-mem skill add <owner>/<repo> --author ada
+```
+
+![skill add](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/13-skill-add.gif)
+
+## 13. Team Skills — sync delivers
+
+Once a skill PR merges, every teammate's next sync materializes it into `~/.claude/skills/`, where Claude Code discovers it — nobody runs an install. `status` reports the picture: materialized count, personal shadows, drift. Remove the skill from the Commons and the next sync cleans it up.
+
+![skill sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/14-skill-sync.gif)
 
 ---
 

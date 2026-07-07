@@ -112,6 +112,21 @@ MD
 
 (cd "$WORLD/client-work" && git add . && git commit --quiet -m "seed client memory" && git push --quiet origin main)
 
+# --- upstream skills repo (the vendoring source for the skill-add demo) ---
+git init --bare --initial-branch=main "$WORLD/skills.git" --quiet
+git clone --quiet "$WORLD/skills.git" "$WORLD/skills-work" 2>/dev/null
+
+mkdir -p "$WORLD/skills-work/skills/grill-me"
+cat > "$WORLD/skills-work/skills/grill-me/SKILL.md" <<'MD'
+---
+name: grill-me
+description: Interview the user about a plan until every branch of the decision tree is resolved
+---
+Ask one question at a time. Chase every "it depends" to a concrete answer. Stop only when the plan survives all of them.
+MD
+
+(cd "$WORLD/skills-work" && git add . && git commit --quiet -m "grill-me" && git push --quiet origin main)
+
 # --- consumer projects ---
 cat > "$WORLD/acme-web/package.json" <<'JSON'
 {
@@ -183,6 +198,25 @@ git commit --quiet -m "add squads/web/use-server-actions"
 git push --quiet origin main
 SH
 
+cat > "$WORLD/bin/teammate-add-skill" <<'SH'
+#!/usr/bin/env bash
+# Hidden tape beat: a teammate's skill PR merges in the commons.
+# Path-scoped git add (pushEntry pattern) — the uncommitted lint bait can never leak.
+set -euo pipefail
+cd /tmp/roboto-mem-demo/teamwork
+mkdir -p skills/deploy-checklist
+cat > skills/deploy-checklist/SKILL.md <<'MD'
+---
+name: deploy-checklist
+description: The team's pre-deploy checklist — run before every production release
+---
+Verify migrations are reversible, feature flags default off, and the rollback command is in the deploy message before shipping.
+MD
+git add skills/deploy-checklist
+git commit --quiet -m "skill(deploy-checklist): add"
+git push --quiet origin main
+SH
+
 cat > "$WORLD/bin/add-overlay" <<'SH'
 #!/usr/bin/env bash
 # Tape helper: adds the client overlay to .roboto-mem.json (stands in for "open it in your editor").
@@ -196,9 +230,14 @@ json.dump(c, open(".roboto-mem.json", "w"), indent=2)
 PY
 SH
 
-chmod +x "$WORLD/bin/roboto-mem" "$WORLD/bin/gh" "$WORLD/bin/teammate-push" "$WORLD/bin/add-overlay"
+chmod +x "$WORLD/bin/roboto-mem" "$WORLD/bin/gh" "$WORLD/bin/teammate-push" "$WORLD/bin/teammate-add-skill" "$WORLD/bin/add-overlay"
 
 cat > "$WORLD/env.zsh" <<'ZSH'
+# HOME redirected into the world: skill materialization targets ~/.claude/skills,
+# and recordings must never touch the real one. zsh startup already ran with the
+# real HOME, and git config is pinned by GIT_CONFIG_GLOBAL, so this only affects
+# the tools the tapes invoke.
+export HOME=/tmp/roboto-mem-demo/home
 export ROBOTO_MEM_HOME=/tmp/roboto-mem-demo/home
 export PATH=/tmp/roboto-mem-demo/bin:$PATH
 export GIT_CONFIG_GLOBAL=/tmp/roboto-mem-demo/gitconfig

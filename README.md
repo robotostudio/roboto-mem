@@ -30,7 +30,11 @@ The secret scan stops a promotion, and `--force` doesn't change its mind:
 
 ![secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/09-promote-scan.gif)
 
-All eleven clips, with instructions for every feature: [docs/demos](docs/demos/README.md).
+A teammate's merged Team Skill lands in `~/.claude/skills/` on your next sync — adopted once, everywhere:
+
+![team skills sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/14-skill-sync.gif)
+
+All thirteen clips, with instructions for every feature: [docs/demos](docs/demos/README.md).
 
 Prefer video? Captioned MP4s of every feature:
 [scaffold the Commons](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/01-init-commons.mp4) ·
@@ -44,7 +48,9 @@ Prefer video? Captioned MP4s of every feature:
 [the secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/09-promote-scan.mp4) ·
 [lint](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/10-lint.mp4) ·
 [live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/11-claude-live.mp4) ·
-[two memory repos](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/12-overlays.mp4)
+[two memory repos](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/12-overlays.mp4) ·
+[skill add](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/13-skill-add.mp4) ·
+[team skills sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/14-skill-sync.mp4)
 
 ## Install
 
