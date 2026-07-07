@@ -101,6 +101,33 @@ For a team repo, add this to `.claude/settings.json` so teammates are prompted t
 
 Inside Claude Code, the plugin adds `/mem-status`, `/mem-sync`, `/mem-upgrade` (prompted, never silent), `/promote`, and `/skill-add`.
 
+## Interactive Mode
+
+Commands that take many flags — `init`, `promote`, `skill add`, `skill promote` — can be run bare in a terminal to prompt for each input:
+
+```sh
+$ npx roboto-mem promote
+? Scope (org, squad/web, stack/react, etc.)
+  org
+? Type (standard or lesson)
+  lesson
+? Name (slug-style: lowercase-with-dashes)
+  sanity-typegen-break
+? Description (one short line)
+  TypeGen flag breaks Sanity client queries
+? Author
+  you
+? Body file path
+  ./entry.md
+
+  lesson · org · sanity-typegen-break
+? Open a PR to the Commons? (Y/n)
+  y
+✔ Created PR · https://github.com/your-org/team-memory/pull/42
+```
+
+Flags you provide are never re-asked. Non-TTY runs (CI, hooks, scripts) never prompt — they behave exactly as they did before.
+
 ## How scoping works
 
 Entries live at a Scope: `org`, `squad/<id>`, `stack/<id>`, or `project/<id>`. A repo's session scopes come from its binding (project, squads) plus detection (`react` in `package.json` → `stack/react`, `typescript` → `stack/typescript`), and the Digest includes exactly the entries whose scope applies. A squad Standard can explicitly override an org Standard — the Digest then replaces the org entry's body with a pointer to the override, so your agent never reads two contradicting rules.

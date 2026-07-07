@@ -1,9 +1,16 @@
 import { parse, stringify } from "yaml";
 
+/** Canonical entry types — single source for the promote type select, gate-1
+ * validation, and parseEntry's frontmatter check. */
+export const ENTRY_TYPES = ["standard", "lesson"] as const;
+export type EntryType = (typeof ENTRY_TYPES)[number];
+export const isEntryType = (value: string): value is EntryType =>
+  (ENTRY_TYPES as readonly string[]).includes(value);
+
 export interface Entry {
   name: string;
   description: string;
-  type: "standard" | "lesson";
+  type: EntryType;
   scope: string;
   author: string;
   date: string;
@@ -16,8 +23,36 @@ export type EntryResult =
   | { ok: true; entry: Entry }
   | { ok: false; file: string; error: string };
 
+/** Human-readable rule text — single source for both promote's gate-1 error
+ * and the interactive date prompts' validators. */
+export const DATE_RULE = "YYYY-MM-DD";
+
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const VALID_TYPES = new Set(["standard", "lesson"]);
+
+/**
+ * Format AND calendar validity — DATE_RE alone accepts nonsense like
+ * "2026-13-99". Builds the UTC date from the parts and requires an exact
+ * year/month/day round-trip: JS's Date normalizes out-of-range components
+ * (month 13 rolls into next year, day 30 in February rolls into March)
+ * rather than rejecting them, so a round-trip mismatch means the calendar
+ * date was never real. UTC-only — never reads the local timezone.
+ */
+export const isValidDate = (value: string): boolean => {
+  if (!DATE_RE.test(value)) return false;
+  // fixed-width YYYY-MM-DD, guaranteed by the test above — slice, not
+  // split+destructure, so noUncheckedIndexedAccess has nothing to flag.
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
+export const todayYMD = (): string => new Date().toISOString().slice(0, 10);
 
 // Pattern: entries/<segment>/<name>.md (org)
 // Pattern: entries/<dir>/<sub>/<name>.md (squads/stacks/projects)
@@ -120,7 +155,7 @@ export const parseEntry = (raw: string, file: string): EntryResult => {
       `required field "description" is missing or not a string in ${file}`,
     );
   }
-  if (typeof fm.type !== "string" || !VALID_TYPES.has(fm.type)) {
+  if (typeof fm.type !== "string" || !isEntryType(fm.type)) {
     return fail(
       file,
       `required field "type" must be "standard" or "lesson" in ${file}`,
@@ -144,7 +179,7 @@ export const parseEntry = (raw: string, file: string): EntryResult => {
   const entry: Entry = {
     name,
     description: fm.description,
-    type: fm.type as "standard" | "lesson",
+    type: fm.type as EntryType,
     scope,
     author: fm.author,
     date: fm.date,

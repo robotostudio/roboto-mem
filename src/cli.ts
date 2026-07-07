@@ -1,8 +1,14 @@
 import { realpathSync } from "node:fs";
-import * as fs from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineCommand, runMain } from "citty";
+import {
+  type ArgsDef,
+  type CommandDef,
+  defineCommand,
+  runMain,
+  showUsage,
+} from "citty";
 import { runDigest } from "./commands/digest.js";
 import { runInit } from "./commands/init.js";
 import { runLint } from "./commands/lint.js";
@@ -10,15 +16,39 @@ import { runPromote } from "./commands/promote.js";
 import { runSkillAdd, runSkillPromote } from "./commands/skill.js";
 import { runStatus } from "./commands/status.js";
 import { runSync } from "./commands/sync.js";
+import { isEntryType, todayYMD } from "./core/entry.js";
 import { exec } from "./core/exec.js";
+import {
+  type PromoteResolved,
+  type Resolved,
+  resolveInitPrompts,
+  resolvePromotePrompts,
+  resolveSkillAddPrompts,
+  resolveSkillPromotePrompts,
+  submitPromote,
+} from "./core/interactive.js";
+import { defaultSkillsTarget } from "./core/materialize.js";
 import { memoryHome } from "./core/memory-repo.js";
+import { createClackDriver, isInteractiveTty } from "./core/prompt-driver.js";
+import {
+  buildInitOptions,
+  INIT_FIELD_DESC,
+  type InitPromptResult,
+  type InitProvided,
+  PROMOTE_FIELD_DESC,
+  type PromoteProvided,
+  SKILL_ADD_FIELD_DESC,
+  SKILL_PROMOTE_FIELD_DESC,
+  type SkillAddPromptResult,
+  type SkillAddProvided,
+  type SkillPromotePromptResult,
+  type SkillPromoteProvided,
+} from "./core/prompts.js";
 import { checkForUpdate } from "./core/update-check.js";
 import { VERSION } from "./core/version.js";
 
 // must match .claude-plugin/plugin.json "repository"
 const REPO_URL = "https://github.com/robotostudio/roboto-mem";
-
-const todayYMD = (): string => new Date().toISOString().slice(0, 10);
 
 const emit = (result: { exitCode: number; output: string }): void => {
   if (result.output) {
@@ -29,17 +59,60 @@ const emit = (result: { exitCode: number; output: string }): void => {
   process.exitCode = result.exitCode;
 };
 
-export const splitSquads = (raw: string): string[] =>
-  raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+// Cancel (Ctrl-C / clack cancel symbol, or declining a summary confirm) always
+// looks like this: no partial output, no side effects, exit 1.
+const reportCancelled = (): void => {
+  process.stderr.write("Cancelled.\n");
+  process.exitCode = 1;
+};
+
+/**
+ * skill add's SOURCE and skill promote's NAME positionals must be `required:
+ * false` in citty so a TTY session can reach the guided prompt for them
+ * (citty's own arg-parser throws — before run() ever executes — for a
+ * missing `required` positional). But `required: false` ALSO flips citty's
+ * own renderUsage() bracket style for that arg from `<NAME>` to `[NAME]`, so
+ * showUsage() can no longer reproduce today's non-TTY usage output byte-for-
+ * byte on its own. Render it against a display-only clone with that one arg
+ * flipped back to required, so the text stays identical to what citty used
+ * to print, while the REAL command definition (used for actual parsing)
+ * stays permissive. Non-TTY output is otherwise unaffected by this file.
+ */
+const reportMissingPositional = async <T extends ArgsDef>(
+  cmd: CommandDef<T>,
+  parent: CommandDef<ArgsDef>,
+  argKey: string,
+  argName: string,
+): Promise<void> => {
+  // cmd.args is always a plain object literal for our own commands (never
+  // citty's async-thunk Resolvable<T> form), so this cast is safe.
+  const realArgs = cmd.args as Record<string, object>;
+  const displayCmd: CommandDef<T> = {
+    ...cmd,
+    args: {
+      ...realArgs,
+      [argKey]: { ...realArgs[argKey], required: true },
+    } as T,
+  };
+  // showUsage only ever reads parent.meta (never its args shape), so this
+  // narrowing cast is safe despite citty's showUsage<T> tying cmd and parent
+  // to the same T.
+  await showUsage(displayCmd, parent as CommandDef<T>);
+  process.stderr.write(
+    `\n ERROR  Missing required positional argument: ${argName}\n\n`,
+  );
+  process.exitCode = 1;
+};
 
 export const validatePromoteType = (
   raw: string,
-): "standard" | "lesson" | undefined => {
-  if (raw === "standard" || raw === "lesson") return raw;
-  return undefined;
+): "standard" | "lesson" | undefined => (isEntryType(raw) ? raw : undefined);
+
+const failTypeError = (raw: string): void => {
+  process.stderr.write(
+    `Error: --type must be "standard" or "lesson", got "${raw}"\n`,
+  );
+  process.exitCode = 1;
 };
 
 const safeNag = async (): Promise<string | undefined> => {
@@ -60,20 +133,31 @@ const safeNag = async (): Promise<string | undefined> => {
 const initCmd = defineCommand({
   meta: { name: "init", description: "Initialise roboto-mem in a project" },
   args: {
-    dir: { type: "positional", default: ".", description: "Project directory" },
-    "commons-url": { type: "string", description: "Commons repo URL" },
-    project: { type: "string", description: "Project name" },
-    squads: { type: "string", description: "Comma-separated squad names" },
-    commons: { type: "boolean", description: "Scaffold commons repo" },
+    dir: { type: "positional", default: ".", description: INIT_FIELD_DESC.dir },
+    "commons-url": { type: "string", description: INIT_FIELD_DESC.commonsUrl },
+    project: { type: "string", description: INIT_FIELD_DESC.project },
+    squads: { type: "string", description: INIT_FIELD_DESC.squads },
+    commons: { type: "boolean", description: INIT_FIELD_DESC.scaffoldCommons },
   },
   async run({ args }) {
-    const result = await runInit({
-      dir: args.dir as string,
-      commonsUrl: args["commons-url"] as string | undefined,
+    const dir = args.dir as string;
+    const provided: InitProvided = {
       project: args.project as string | undefined,
-      squads: args.squads ? splitSquads(args.squads as string) : undefined,
+      commonsUrl: args["commons-url"] as string | undefined,
+      squads: args.squads as string | undefined,
       scaffoldCommons: args.commons as boolean | undefined,
-    });
+    };
+
+    const filled: Resolved<InitPromptResult> = isInteractiveTty()
+      ? await resolveInitPrompts(provided, await createClackDriver(), dir)
+      : { cancelled: false, options: buildInitOptions(provided, {}) };
+
+    if (filled.cancelled) {
+      reportCancelled();
+      return;
+    }
+
+    const result = await runInit({ dir, ...filled.options });
     emit(result);
   },
 });
@@ -121,37 +205,77 @@ const digestCmd = defineCommand({
 const promoteCmd = defineCommand({
   meta: { name: "promote", description: "Promote an entry to the commons" },
   args: {
-    scope: { type: "string", description: "Entry scope" },
-    type: { type: "string", description: "Entry type: standard | lesson" },
-    name: { type: "string", description: "Entry name" },
-    description: { type: "string", description: "Short description" },
-    author: { type: "string", description: "Author" },
+    scope: { type: "string", description: PROMOTE_FIELD_DESC.scope },
+    type: { type: "string", description: PROMOTE_FIELD_DESC.type },
+    name: { type: "string", description: PROMOTE_FIELD_DESC.name },
+    description: {
+      type: "string",
+      description: PROMOTE_FIELD_DESC.description,
+    },
+    author: { type: "string", description: PROMOTE_FIELD_DESC.author },
     date: {
       type: "string",
-      description: "Date (YYYY-MM-DD)",
+      description: PROMOTE_FIELD_DESC.date,
     },
     "body-file": {
       type: "string",
-      description: "Path to file containing body",
+      description: PROMOTE_FIELD_DESC.bodyFile,
     },
-    overrides: { type: "string", description: "Override refs" },
-    force: { type: "boolean", description: "Overwrite existing entry" },
+    overrides: { type: "string", description: PROMOTE_FIELD_DESC.overrides },
+    force: { type: "boolean", description: PROMOTE_FIELD_DESC.force },
   },
   async run({ args }) {
-    const rawType = (args.type as string | undefined) ?? "";
-    const resolvedType = validatePromoteType(rawType);
-    if (!resolvedType) {
-      process.stderr.write(
-        `Error: --type must be "standard" or "lesson", got "${rawType}"\n`,
+    const provided: PromoteProvided = {
+      scope: args.scope as string | undefined,
+      type: args.type as string | undefined,
+      name: args.name as string | undefined,
+      description: args.description as string | undefined,
+      author: args.author as string | undefined,
+      date: args.date as string | undefined,
+      bodyFile: args["body-file"] as string | undefined,
+    };
+
+    // Validate flags that WERE passed before any prompting/driver work, so a
+    // bad flag fails fast instead of after a guided-flow summary confirm.
+    if (provided.type !== undefined && !validatePromoteType(provided.type)) {
+      failTypeError(provided.type);
+      return;
+    }
+    if (provided.bodyFile !== undefined) {
+      const readable = await access(path.resolve(provided.bodyFile)).then(
+        () => true,
+        () => false,
       );
-      process.exitCode = 1;
+      if (!readable) {
+        process.stderr.write(
+          `Error: cannot read --body-file "${provided.bodyFile}"\n`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+    }
+
+    const driver = isInteractiveTty() ? await createClackDriver() : undefined;
+
+    const filled: PromoteResolved = driver
+      ? await resolvePromotePrompts(provided, driver, process.cwd())
+      : { cancelled: false, guided: false, options: provided };
+
+    if (filled.cancelled) {
+      reportCancelled();
+      return;
+    }
+    const { options } = filled;
+
+    const resolvedType = validatePromoteType(options.type ?? "");
+    if (!resolvedType) {
+      failTypeError(options.type ?? "");
       return;
     }
 
-    const bodyFile = args["body-file"] as string | undefined;
+    const bodyFile = options.bodyFile;
     const bodyResult = bodyFile
-      ? await fs
-          .readFile(path.resolve(bodyFile), "utf8")
+      ? await readFile(path.resolve(bodyFile), "utf8")
           .then((text): { ok: true; text: string } => ({ ok: true, text }))
           .catch((): { ok: false } => ({ ok: false }))
       : ({ ok: true, text: "" } as { ok: true; text: string });
@@ -163,19 +287,33 @@ const promoteCmd = defineCommand({
     }
     const body = bodyResult.text;
 
-    const result = await runPromote({
+    const promoteInput = {
       cwd: process.cwd(),
-      scope: (args.scope as string | undefined) ?? "",
+      scope: options.scope ?? "",
       type: resolvedType,
-      name: (args.name as string | undefined) ?? "",
-      description: (args.description as string | undefined) ?? "",
+      name: options.name ?? "",
+      description: options.description ?? "",
       body,
-      author: (args.author as string | undefined) ?? "",
-      date: (args.date as string | undefined) ?? todayYMD(),
+      author: options.author ?? "",
+      date: options.date ?? todayYMD(),
       overrides: args.overrides as string | undefined,
       force: Boolean(args.force),
-    });
-    emit(result);
+    };
+
+    // Collision confirm-retry only ever applies to a genuinely guided run —
+    // flags-only and non-TTY call runPromote directly, same error as always.
+    if (!filled.guided) {
+      const result = await runPromote(promoteInput);
+      emit(result);
+      return;
+    }
+
+    const submitted = await submitPromote(promoteInput, filled.driver);
+    if (submitted.cancelled) {
+      reportCancelled();
+      return;
+    }
+    emit(submitted.result);
   },
 });
 
@@ -209,22 +347,53 @@ const skillAddCmd = defineCommand({
       "Vendor a skill from GitHub/skills.sh into the commons (opens a PR)",
   },
   args: {
-    source: { type: "positional", description: "owner/repo or git URL" },
+    // required:false so a TTY session can reach the guided source prompt —
+    // see reportMissingPositional for how non-TTY output stays unchanged.
+    source: {
+      type: "positional",
+      description: SKILL_ADD_FIELD_DESC.source,
+      required: false,
+    },
     skill: {
       type: "string",
-      description: "Skill name when the repo has several",
+      description: SKILL_ADD_FIELD_DESC.skill,
     },
-    ref: { type: "string", description: "Upstream ref to pin (default: HEAD)" },
-    author: { type: "string", description: "Author (github handle)" },
-    date: { type: "string", description: "Date (YYYY-MM-DD)" },
+    ref: { type: "string", description: SKILL_ADD_FIELD_DESC.ref },
+    author: { type: "string", description: SKILL_ADD_FIELD_DESC.author },
+    date: { type: "string", description: SKILL_ADD_FIELD_DESC.date },
   },
   async run({ args }) {
-    const result = await runSkillAdd({
-      cwd: process.cwd(),
-      source: (args.source as string | undefined) ?? "",
+    const provided: SkillAddProvided = {
+      source: args.source as string | undefined,
       skill: args.skill as string | undefined,
       ref: args.ref as string | undefined,
-      author: (args.author as string | undefined) ?? "",
+      author: args.author as string | undefined,
+    };
+
+    if (!provided.source && !isInteractiveTty()) {
+      await reportMissingPositional(skillAddCmd, skillCmd, "source", "SOURCE");
+      return;
+    }
+
+    const filled: Resolved<SkillAddPromptResult> = isInteractiveTty()
+      ? await resolveSkillAddPrompts(
+          provided,
+          await createClackDriver(),
+          process.cwd(),
+        )
+      : { cancelled: false, options: provided };
+
+    if (filled.cancelled) {
+      reportCancelled();
+      return;
+    }
+
+    const result = await runSkillAdd({
+      cwd: process.cwd(),
+      source: filled.options.source ?? "",
+      skill: filled.options.skill,
+      ref: filled.options.ref,
+      author: filled.options.author ?? "",
       date: (args.date as string | undefined) ?? todayYMD(),
     });
     emit(result);
@@ -238,16 +407,47 @@ const skillPromoteCmd = defineCommand({
       "Promote a personal skill (~/.claude/skills/<name>) into the commons (opens a PR)",
   },
   args: {
-    name: { type: "positional", description: "Skill directory name" },
-    author: { type: "string", description: "Author (github handle)" },
-    date: { type: "string", description: "Date (YYYY-MM-DD)" },
+    // required:false so a TTY session can reach the guided personal-skill
+    // select — see reportMissingPositional for the non-TTY parity story.
+    name: {
+      type: "positional",
+      description: SKILL_PROMOTE_FIELD_DESC.name,
+      required: false,
+    },
+    author: { type: "string", description: SKILL_PROMOTE_FIELD_DESC.author },
+    date: { type: "string", description: SKILL_PROMOTE_FIELD_DESC.date },
   },
   async run({ args }) {
+    const provided: SkillPromoteProvided = {
+      name: args.name as string | undefined,
+      author: args.author as string | undefined,
+      date: args.date as string | undefined,
+    };
+
+    if (!provided.name && !isInteractiveTty()) {
+      await reportMissingPositional(skillPromoteCmd, skillCmd, "name", "NAME");
+      return;
+    }
+
+    const filled: Resolved<SkillPromotePromptResult> = isInteractiveTty()
+      ? await resolveSkillPromotePrompts(
+          provided,
+          await createClackDriver(),
+          defaultSkillsTarget(),
+          process.cwd(),
+        )
+      : { cancelled: false, options: provided };
+
+    if (filled.cancelled) {
+      reportCancelled();
+      return;
+    }
+
     const result = await runSkillPromote({
       cwd: process.cwd(),
-      name: (args.name as string | undefined) ?? "",
-      author: (args.author as string | undefined) ?? "",
-      date: (args.date as string | undefined) ?? todayYMD(),
+      name: filled.options.name ?? "",
+      author: filled.options.author ?? "",
+      date: filled.options.date ?? todayYMD(),
     });
     emit(result);
   },

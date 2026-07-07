@@ -27,7 +27,7 @@ export interface MaterializeOptions {
 export const defaultSkillsTarget = (): string =>
   path.join(os.homedir(), ".claude", "skills");
 
-const exists = (p: string): Promise<boolean> =>
+export const exists = (p: string): Promise<boolean> =>
   access(p).then(
     () => true,
     () => false,

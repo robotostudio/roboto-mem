@@ -2,17 +2,29 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { loadConfig } from "../core/config.js";
 import { findSimilar } from "../core/dedupe.js";
-import { DATE_RE, entryPathForScope, serializeEntry } from "../core/entry.js";
+import {
+  DATE_RULE,
+  type EntryType,
+  entryPathForScope,
+  isEntryType,
+  isValidDate,
+  serializeEntry,
+} from "../core/entry.js";
 import { type ExecResult, exec } from "../core/exec.js";
 import { ensureRepo, loadMemory, memoryHome } from "../core/memory-repo.js";
 import { scanEntry } from "../core/scan.js";
-import { isValidScope, SCOPE_ID_RE } from "../core/scopes.js";
+import {
+  isValidScope,
+  SCOPE_ID_RE,
+  SCOPE_ID_RULE,
+  SCOPE_RULE,
+} from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
 
 export interface PromoteOptions {
   cwd: string;
   scope: string;
-  type: "standard" | "lesson";
+  type: EntryType;
   name: string;
   description: string;
   body: string;
@@ -20,12 +32,25 @@ export interface PromoteOptions {
   date: string;
   overrides?: string;
   force?: boolean;
+  /**
+   * Bypasses the exact-collision gate (4a) only. Never exposed as a CLI flag —
+   * `--force` deliberately does NOT bypass an exact collision (see the gate 4a
+   * comment below); only the interactive guided-promote overwrite-confirm
+   * retry (src/core/interactive.ts) may set this.
+   */
+  overwrite?: boolean;
   home?: string;
   ghRunner?: (args: string[], cwd: string) => Promise<ExecResult>;
 }
 
-const fail = (output: string): CommandResult => ({ exitCode: 1, output });
-const ok = (output: string): CommandResult => ({ exitCode: 0, output });
+/** runPromote's result, tagging the one failure interactive.ts's guided
+ * collision-retry needs to recognise structurally instead of by matching
+ * message text (drift-prone — see the deleted entryCollisionMessage export). */
+export type PromoteResult = CommandResult & { reason?: "collision" };
+
+const fail = (output: string, reason?: "collision"): PromoteResult =>
+  reason ? { exitCode: 1, output, reason } : { exitCode: 1, output };
+const ok = (output: string): PromoteResult => ({ exitCode: 0, output });
 
 /** Derives a GitHub compare URL from a remote URL and branch name, or undefined for non-GitHub remotes. */
 export const compareUrl = (
@@ -44,7 +69,7 @@ const defaultGhRunner = (args: string[], cwd: string): Promise<ExecResult> =>
 
 export const runPromote = async (
   options: PromoteOptions,
-): Promise<CommandResult> => {
+): Promise<PromoteResult> => {
   const {
     cwd,
     scope,
@@ -56,24 +81,25 @@ export const runPromote = async (
     date,
     overrides,
     force = false,
+    overwrite = false,
     home = memoryHome(),
     ghRunner = defaultGhRunner,
   } = options;
 
   // --- Gate 1: validate inputs ---
   if (!isValidScope(scope)) {
-    return fail(
-      `Invalid scope "${scope}". Must be org, squad/<s>, stack/<k>, or project/<p>.`,
-    );
+    return fail(`Invalid scope "${scope}". Must be ${SCOPE_RULE}.`);
   }
   if (!SCOPE_ID_RE.test(name)) {
-    return fail(`Invalid name "${name}". Must match /^[a-z0-9][a-z0-9-]*$/.`);
+    return fail(`Invalid name "${name}". Must match ${SCOPE_ID_RULE}.`);
   }
-  if (type !== "standard" && type !== "lesson") {
+  if (!isEntryType(type)) {
     return fail(`Invalid type "${type}". Must be "standard" or "lesson".`);
   }
-  if (!DATE_RE.test(date)) {
-    return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+  if (!isValidDate(date)) {
+    return fail(
+      `Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`,
+    );
   }
   if (!description.trim()) return fail("description must not be empty.");
   if (!body.trim()) return fail("body must not be empty.");
@@ -109,12 +135,15 @@ export const runPromote = async (
     return fail(`Failed to load memory: ${mem.detail}`);
   }
 
-  // 4a: exact collision
+  // 4a: exact collision (bypassed only by the interactive overwrite-confirm
+  // retry via `overwrite` — never by `force`, which is CLI-flag-reachable and
+  // must keep failing here so flag/non-TTY behavior never changes)
   const relPath = entryPathForScope(scope, name);
   const collision = mem.entries.find((e) => e.file === relPath);
-  if (collision) {
+  if (collision && !overwrite) {
     return fail(
       `Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`,
+      "collision",
     );
   }
 

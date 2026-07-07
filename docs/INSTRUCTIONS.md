@@ -146,6 +146,37 @@ Nothing enters the notebook until a human Owner approves that request. That's th
 
 [▶ Watch: promoting a rule](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/08-promote.mp4) · [▶ Watch: the secret scan saying no](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/09-promote-scan.mp4)
 
+### Interactive Mode — skip the flags, answer prompts instead
+
+Don't want to remember all those flags? Run the command bare in a terminal and answer each question as it appears:
+
+```sh
+$ npx roboto-mem promote
+? Scope (org, squad/web, stack/react, etc.)
+  org
+? Type (standard or lesson)
+  lesson
+? Name (slug-style: lowercase-with-dashes)
+  sanity-typegen-break
+? Description (one short line)
+  TypeGen flag breaks Sanity client queries
+? Author
+  chris
+? Body file path
+  ./note.md
+
+  lesson · org · sanity-typegen-break
+? Open a PR to the Commons? (Y/n)
+  y
+✔ Created PR #42 · https://github.com/org/team-memory/pull/42
+```
+
+Each field shows its purpose inline. If you pass flags — say, `npx roboto-mem promote --author chris` — those are never asked again, and the rest still prompt. Commands `init`, `skill add`, and `skill promote` work the same way.
+
+If a page with that name already exists in the scope you picked, the prompts ask whether to propose overwriting it — saying yes opens a PR that replaces the page, and the scope's Owners still review it like any other change.
+
+Non-TTY invocations (the SessionStart hook, CI, scripts) never prompt and behave exactly as before — your pipeline never blocks on a question.
+
 ## Part 6 — Change or remove a rule
 
 Pages are just markdown files in the memory repo, under `entries/`. To change or remove one:

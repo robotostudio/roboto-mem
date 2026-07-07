@@ -417,6 +417,32 @@ describe("runSkillAdd", () => {
     expect(absolute.output).toContain("Invalid --skill");
     expect(gh.calls).toHaveLength(0);
   });
+
+  it("rejects a calendar-invalid --date before any clone", async () => {
+    const { cwd, home } = await setup();
+
+    const monthOutOfRange = await runSkillAdd({
+      cwd,
+      source: "obra/skills",
+      author: "h",
+      date: "2026-13-99",
+      home,
+    });
+    expect(monthOutOfRange.exitCode).toBe(1);
+    expect(monthOutOfRange.output).toMatch(/date/i);
+    expect(monthOutOfRange.output).toMatch(/calendar/i);
+
+    const dayOutOfRange = await runSkillAdd({
+      cwd,
+      source: "obra/skills",
+      author: "h",
+      date: "2026-02-30",
+      home,
+    });
+    expect(dayOutOfRange.exitCode).toBe(1);
+    expect(dayOutOfRange.output).toMatch(/date/i);
+    expect(dayOutOfRange.output).toMatch(/calendar/i);
+  });
 });
 
 describe("runSkillPromote", () => {
@@ -498,5 +524,32 @@ describe("runSkillPromote", () => {
     });
     expect(mismatch.exitCode).toBe(1);
     expect(mismatch.output).toContain("other");
+  });
+
+  it("rejects a calendar-invalid --date before any clone", async () => {
+    const cwd = await tmp.make();
+    const home = await tmp.make();
+
+    const monthOutOfRange = await runSkillPromote({
+      cwd,
+      name: "grill-me",
+      author: "h",
+      date: "2026-13-99",
+      home,
+    });
+    expect(monthOutOfRange.exitCode).toBe(1);
+    expect(monthOutOfRange.output).toMatch(/date/i);
+    expect(monthOutOfRange.output).toMatch(/calendar/i);
+
+    const dayOutOfRange = await runSkillPromote({
+      cwd,
+      name: "grill-me",
+      author: "h",
+      date: "2026-02-30",
+      home,
+    });
+    expect(dayOutOfRange.exitCode).toBe(1);
+    expect(dayOutOfRange.output).toMatch(/date/i);
+    expect(dayOutOfRange.output).toMatch(/calendar/i);
   });
 });

@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { glob } from "tinyglobby";
 import { loadConfig } from "../core/config.js";
-import { DATE_RE } from "../core/entry.js";
+import { DATE_RULE, isValidDate } from "../core/entry.js";
 import { type ExecResult, exec } from "../core/exec.js";
 import { defaultSkillsTarget } from "../core/materialize.js";
 import { ensureRepo, memoryHome } from "../core/memory-repo.js";
@@ -376,8 +376,10 @@ export const runSkillAdd = async (
   } = options;
 
   if (!author.trim()) return fail("author must not be empty.");
-  if (!DATE_RE.test(date))
-    return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+  if (!isValidDate(date))
+    return fail(
+      `Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`,
+    );
 
   const normalized = normalizeSource(source);
   if (!normalized) {
@@ -456,8 +458,10 @@ export const runSkillPromote = async (
   } = options;
 
   if (!author.trim()) return fail("author must not be empty.");
-  if (!DATE_RE.test(date))
-    return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+  if (!isValidDate(date))
+    return fail(
+      `Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`,
+    );
 
   const configResult = await loadConfig(cwd);
   if (!configResult.ok) {

@@ -25,9 +25,21 @@ export interface InitOptions {
   scaffoldCommons?: boolean;
 }
 
-const writeFile = async (filePath: string, content: string): Promise<void> => {
+/** Never clobbers a pre-existing file — scaffolding into an already-bound
+ * project repo (or any dir with its own README/CODEOWNERS/etc.) must not
+ * overwrite content that isn't ours. */
+const writeIfMissing = async (
+  filePath: string,
+  content: string,
+): Promise<boolean> => {
+  const alreadyExists = await fs.access(filePath).then(
+    () => true,
+    () => false,
+  );
+  if (alreadyExists) return false;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, content, "utf8");
+  return true;
 };
 
 // The CI workflow runs the CLI vendored into the Commons (no tokens, no network).
@@ -65,40 +77,70 @@ const scaffoldMode = async (dir: string): Promise<CommandResult> => {
     // file absent — proceed
   }
 
-  await Promise.all([
-    writeFile(memJsonPath, MEMORY_JSON),
-    writeFile(path.join(dir, "CODEOWNERS"), CODEOWNERS),
-    writeFile(path.join(dir, "README.md"), COMMONS_README),
-    writeFile(
-      path.join(dir, ".github", "workflows", "memory-ci.yml"),
-      MEMORY_CI_YML,
-    ),
-    writeFile(path.join(dir, "entries", "org", ".gitkeep"), ""),
-    writeFile(path.join(dir, "entries", "squads", ".gitkeep"), ""),
-    writeFile(path.join(dir, "entries", "stacks", ".gitkeep"), ""),
-    writeFile(path.join(dir, "entries", "projects", ".gitkeep"), ""),
-    writeFile(path.join(dir, "skills", ".gitkeep"), ""),
-  ]);
+  const targets: { label: string; path: string; content: string }[] = [
+    { label: "memory.json", path: memJsonPath, content: MEMORY_JSON },
+    {
+      label: "CODEOWNERS",
+      path: path.join(dir, "CODEOWNERS"),
+      content: CODEOWNERS,
+    },
+    {
+      label: "README.md",
+      path: path.join(dir, "README.md"),
+      content: COMMONS_README,
+    },
+    {
+      label: ".github/workflows/memory-ci.yml",
+      path: path.join(dir, ".github", "workflows", "memory-ci.yml"),
+      content: MEMORY_CI_YML,
+    },
+    {
+      label: "entries/org/.gitkeep",
+      path: path.join(dir, "entries", "org", ".gitkeep"),
+      content: "",
+    },
+    {
+      label: "entries/squads/.gitkeep",
+      path: path.join(dir, "entries", "squads", ".gitkeep"),
+      content: "",
+    },
+    {
+      label: "entries/stacks/.gitkeep",
+      path: path.join(dir, "entries", "stacks", ".gitkeep"),
+      content: "",
+    },
+    {
+      label: "entries/projects/.gitkeep",
+      path: path.join(dir, "entries", "projects", ".gitkeep"),
+      content: "",
+    },
+    {
+      label: "skills/.gitkeep",
+      path: path.join(dir, "skills", ".gitkeep"),
+      content: "",
+    },
+  ];
+
+  const written = await Promise.all(
+    targets.map(async (t) => ({
+      label: t.label,
+      wrote: await writeIfMissing(t.path, t.content),
+    })),
+  );
   const vendorWarning = await vendorCli(dir);
 
-  const created = [
-    "memory.json",
-    "CODEOWNERS",
-    "README.md",
-    ".github/workflows/memory-ci.yml",
-    ...(vendorWarning ? [] : [".roboto-mem/cli.mjs (vendored CLI for CI)"]),
-    "entries/org/.gitkeep",
-    "entries/squads/.gitkeep",
-    "entries/stacks/.gitkeep",
-    "entries/projects/.gitkeep",
-    "skills/.gitkeep",
-  ];
+  const lines = written.map(({ label, wrote }) =>
+    wrote ? `  ${label}` : `  ${label} (exists, skipped)`,
+  );
+  if (!vendorWarning) {
+    lines.push("  .roboto-mem/cli.mjs (vendored CLI for CI)");
+  }
 
   return {
     exitCode: 0,
     output: [
-      "Commons repo scaffolded. Created:",
-      ...created.map((f) => `  ${f}`),
+      "Commons repo scaffolded:",
+      ...lines,
       ...(vendorWarning ? [vendorWarning] : []),
       "",
       "Next steps:",

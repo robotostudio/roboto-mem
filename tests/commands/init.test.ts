@@ -222,6 +222,44 @@ describe("init command", () => {
     expect(await fs.readFile(memJsonPath, "utf8")).toBe(sentinelContent);
   });
 
+  // 6b. scaffold never overwrites a pre-existing file when memory.json is
+  // absent (the exact accident: scaffolding into an already-populated repo)
+  it("scaffold: never overwrites a pre-existing README.md/CODEOWNERS, reports them skipped, still writes the rest", async () => {
+    const dir = await makeDir();
+
+    const customReadme =
+      "# My Project\n\nThis is a real project, not a Commons.";
+    const customCodeowners = "* @someone-else\n";
+    await fs.writeFile(path.join(dir, "README.md"), customReadme, "utf8");
+    await fs.writeFile(path.join(dir, "CODEOWNERS"), customCodeowners, "utf8");
+
+    const result = await runInit({ dir, scaffoldCommons: true });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("README.md (exists, skipped)");
+    expect(result.output).toContain("CODEOWNERS (exists, skipped)");
+
+    // pre-existing files are byte-unchanged
+    expect(await fs.readFile(path.join(dir, "README.md"), "utf8")).toBe(
+      customReadme,
+    );
+    expect(await fs.readFile(path.join(dir, "CODEOWNERS"), "utf8")).toBe(
+      customCodeowners,
+    );
+
+    // files that did NOT already exist are still written normally
+    await expect(
+      fs.access(path.join(dir, "memory.json")),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(dir, "entries", "org", ".gitkeep")),
+    ).resolves.toBeUndefined();
+    const memJson = JSON.parse(
+      await fs.readFile(path.join(dir, "memory.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(memJson.formatVersion).toBe(1);
+  });
+
   // 7. scaffold output mentions next steps; bind output lists derived scope union
   it("scaffold: output mentions next steps (push + bind)", async () => {
     const dir = await makeDir();

@@ -1,21 +1,22 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
-import { realpathSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import { access, cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import * as path from "node:path";
-import { join, sep } from "node:path";
+import * as path$1 from "node:path";
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatWithOptions } from "node:util";
-import g$1, { stdin, stdout } from "node:process";
+import { formatWithOptions, stripVTControlCharacters, styleText } from "node:util";
+import process$1, { stdin, stdout } from "node:process";
 import * as tty from "node:tty";
-import { WriteStream } from "node:tty";
-import f from "node:readline";
+import { ReadStream, WriteStream } from "node:tty";
+import * as l from "node:readline";
+import l__default from "node:readline";
 import { createHash } from "node:crypto";
 import * as os from "node:os";
 import * as nativeFs from "fs";
-import { readdir as readdir$1, readdirSync, realpath, realpathSync as realpathSync$1, stat, statSync } from "fs";
-import { basename, dirname, isAbsolute, normalize, posix, relative, resolve, sep as sep$1 } from "path";
+import { readdir as readdir$1, readdirSync as readdirSync$1, realpath, realpathSync as realpathSync$1, stat, statSync } from "fs";
+import { basename, dirname as dirname$1, isAbsolute, normalize, posix, relative, resolve, sep as sep$1 } from "path";
 import { fileURLToPath as fileURLToPath$1 } from "url";
 import { createRequire as createRequire$1 } from "module";
 import { execFile } from "node:child_process";
@@ -504,8 +505,8 @@ const isForced = "FORCE_COLOR" in env || argv.includes("--color");
 const isWindows = platform === "win32";
 const isDumbTerminal = env.TERM === "dumb";
 const isCompatibleTerminal = tty && tty.isatty && tty.isatty(1) && env.TERM && !isDumbTerminal;
-const isCI = "CI" in env && ("GITHUB_ACTIONS" in env || "GITLAB_CI" in env || "CIRCLECI" in env);
-const isColorSupported = !isDisabled && (isForced || isWindows && !isDumbTerminal || isCompatibleTerminal || isCI);
+const isCI$1 = "CI" in env && ("GITHUB_ACTIONS" in env || "GITLAB_CI" in env || "CIRCLECI" in env);
+const isColorSupported = !isDisabled && (isForced || isWindows && !isDumbTerminal || isCompatibleTerminal || isCI$1);
 function replaceClose(index, string, close, replace, head = string.slice(0, Math.max(0, index)) + replace, tail = string.slice(Math.max(0, index + close.length)), next = tail.indexOf(close)) {
 	return head + (next < 0 ? tail : replaceClose(next, tail, close, replace));
 }
@@ -647,7 +648,7 @@ const defaultStyle = {
 	marginTop: 1,
 	marginBottom: 1
 };
-function box(text, _opts = {}) {
+function box$1(text, _opts = {}) {
 	const opts = {
 		..._opts,
 		style: {
@@ -817,22 +818,22 @@ function requirePicocolors() {
 	picocolors.exports.createColors = createColors;
 	return picocolors.exports;
 }
-function J({ onlyFirst: t = false } = {}) {
+function J$1({ onlyFirst: t = false } = {}) {
 	const F = ["[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?(?:\\u0007|\\u001B\\u005C|\\u009C))", "(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))"].join("|");
 	return new RegExp(F, t ? void 0 : "g");
 }
-function T$1(t) {
+function T$1$3(t) {
 	if (typeof t != "string") throw new TypeError(`Expected a \`string\`, got \`${typeof t}\``);
-	return t.replace(Q, "");
+	return t.replace(Q$1, "");
 }
 function O$1(t) {
 	return t && t.__esModule && Object.prototype.hasOwnProperty.call(t, "default") ? t.default : t;
 }
-function A$1(t, u = {}) {
+function A$1$3(t, u = {}) {
 	if (typeof t != "string" || t.length === 0 || (u = {
 		ambiguousIsNarrow: true,
 		...u
-	}, t = T$1(t), t.length === 0)) return 0;
+	}, t = T$1$3(t), t.length === 0)) return 0;
 	t = t.replace(FD(), "  ");
 	const F = u.ambiguousIsNarrow ? 1 : 2;
 	let e = 0;
@@ -854,20 +855,20 @@ function A$1(t, u = {}) {
 }
 function sD() {
 	const t = /* @__PURE__ */ new Map();
-	for (const [u, F] of Object.entries(r$1)) {
-		for (const [e, s] of Object.entries(F)) r$1[e] = {
+	for (const [u, F] of Object.entries(r$2)) {
+		for (const [e, s] of Object.entries(F)) r$2[e] = {
 			open: `\x1B[${s[0]}m`,
 			close: `\x1B[${s[1]}m`
-		}, F[e] = r$1[e], t.set(s[0], s[1]);
-		Object.defineProperty(r$1, u, {
+		}, F[e] = r$2[e], t.set(s[0], s[1]);
+		Object.defineProperty(r$2, u, {
 			value: F,
 			enumerable: false
 		});
 	}
-	return Object.defineProperty(r$1, "codes", {
+	return Object.defineProperty(r$2, "codes", {
 		value: t,
 		enumerable: false
-	}), r$1.color.close = "\x1B[39m", r$1.bgColor.close = "\x1B[49m", r$1.color.ansi = L$1(), r$1.color.ansi256 = N$1(), r$1.color.ansi16m = I$1(), r$1.bgColor.ansi = L$1(m), r$1.bgColor.ansi256 = N$1(m), r$1.bgColor.ansi16m = I$1(m), Object.defineProperties(r$1, {
+	}), r$2.color.close = "\x1B[39m", r$2.bgColor.close = "\x1B[49m", r$2.color.ansi = L$1(), r$2.color.ansi256 = N$2(), r$2.color.ansi16m = I$2(), r$2.bgColor.ansi = L$1(m$2), r$2.bgColor.ansi256 = N$2(m$2), r$2.bgColor.ansi16m = I$2(m$2), Object.defineProperties(r$2, {
 		rgbToAnsi256: {
 			value: (u, F, e) => u === F && F === e ? u < 8 ? 16 : u > 248 ? 231 : Math.round((u - 8) / 247 * 24) + 232 : 16 + 36 * Math.round(u / 255 * 5) + 6 * Math.round(F / 255 * 5) + Math.round(e / 255 * 5),
 			enumerable: false
@@ -892,7 +893,7 @@ function sD() {
 			enumerable: false
 		},
 		hexToAnsi256: {
-			value: (u) => r$1.rgbToAnsi256(...r$1.hexToRgb(u)),
+			value: (u) => r$2.rgbToAnsi256(...r$2.hexToRgb(u)),
 			enumerable: false
 		},
 		ansi256ToAnsi: {
@@ -914,14 +915,14 @@ function sD() {
 			enumerable: false
 		},
 		rgbToAnsi: {
-			value: (u, F, e) => r$1.ansi256ToAnsi(r$1.rgbToAnsi256(u, F, e)),
+			value: (u, F, e) => r$2.ansi256ToAnsi(r$2.rgbToAnsi256(u, F, e)),
 			enumerable: false
 		},
 		hexToAnsi: {
-			value: (u) => r$1.ansi256ToAnsi(r$1.hexToAnsi256(u)),
+			value: (u) => r$2.ansi256ToAnsi(r$2.hexToAnsi256(u)),
 			enumerable: false
 		}
-	}), r$1;
+	}), r$2;
 }
 function G$1(t, u, F) {
 	return String(t).normalize().replace(/\r\n/g, `
@@ -930,7 +931,7 @@ function G$1(t, u, F) {
 `);
 }
 function k$1(t, u) {
-	if (typeof t == "string") return c$1.aliases.get(t) === u;
+	if (typeof t == "string") return c$3.aliases.get(t) === u;
 	for (const F of t) if (F !== void 0 && k$1(F, u)) return true;
 	return false;
 }
@@ -947,7 +948,7 @@ function d$1(t, u) {
 	F.isTTY && F.setRawMode(u);
 }
 function ce() {
-	return g$1.platform !== "win32" ? g$1.env.TERM !== "linux" : !!g$1.env.CI || !!g$1.env.WT_SESSION || !!g$1.env.TERMINUS_SUBLIME || g$1.env.ConEmuTask === "{cmd::Cmder}" || g$1.env.TERM_PROGRAM === "Terminus-Sublime" || g$1.env.TERM_PROGRAM === "vscode" || g$1.env.TERM === "xterm-256color" || g$1.env.TERM === "alacritty" || g$1.env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
+	return process$1.platform !== "win32" ? process$1.env.TERM !== "linux" : !!process$1.env.CI || !!process$1.env.WT_SESSION || !!process$1.env.TERMINUS_SUBLIME || process$1.env.ConEmuTask === "{cmd::Cmder}" || process$1.env.TERM_PROGRAM === "Terminus-Sublime" || process$1.env.TERM_PROGRAM === "vscode" || process$1.env.TERM === "xterm-256color" || process$1.env.TERM === "alacritty" || process$1.env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
 }
 async function prompt(message, opts = {}) {
 	const handleCancel = (value) => {
@@ -995,13 +996,13 @@ async function prompt(message, opts = {}) {
 	}).then(handleCancel);
 	throw new Error(`Unknown prompt type: ${opts.type}`);
 }
-var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, e, Q, P$1, X, DD, uD, FD, m, L$1, N$1, I$1, r$1, tD, eD, iD, v, CD, w$1, W$1, rD, R$1, y$1, V$1, z, ED, _$1, nD, oD, c$1, S$1, AD, pD, h, x, fD, bD, mD, Y, wD, SD, $D, q, jD, PD, V, u$1, le, L$2, W, C$1, o$1, d, k, P, A$2, T$2, F$1, w, B, he, ye, ve, fe, kCancel;
+var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, e, Q$1, P$1$1, X, DD, uD, FD, m$2, L$1, N$2, I$2, r$2, tD, eD, iD, v, CD, w$1, W$1$1, rD, R$2, y$1, V$1, z, ED, _$2, nD, oD, c$3, S$1, AD, pD, h$1, x$1, fD, bD, mD, Y, wD, SD, $D, q, jD, PD, V$2, u$5, le, L$2, W$2, C$3, o$2, d, k, P$2, A$4, T$4, F$1, w, B, he, ye, ve, fe, kCancel;
 var init_prompt = __esmMin((() => {
 	srcExports = requireSrc();
 	picocolors = { exports: {} };
 	e = /*@__PURE__*/ getDefaultExportFromCjs(/* @__PURE__ */ requirePicocolors());
-	Q = J();
-	P$1 = { exports: {} };
+	Q$1 = J$1();
+	P$1$1 = { exports: {} };
 	(function(t) {
 		var u = {};
 		t.exports = u, u.eastAsianWidth = function(e) {
@@ -1027,14 +1028,14 @@ var init_prompt = __esmMin((() => {
 			}
 			return D;
 		};
-	})(P$1);
-	X = P$1.exports;
+	})(P$1$1);
+	X = P$1$1.exports;
 	DD = O$1(X);
 	uD = function() {
 		return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67)\uDB40\uDC7F|(?:\uD83E\uDDD1\uD83C\uDFFF\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFC-\uDFFF])|\uD83D\uDC68(?:\uD83C\uDFFB(?:\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF]))|\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|[\u2695\u2696\u2708]\uFE0F|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))?|(?:\uD83C[\uDFFC-\uDFFF])\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF]))|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])\uFE0F|\u200D(?:(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|\uD83D[\uDC66\uDC67])|\uD83C\uDFFF|\uD83C\uDFFE|\uD83C\uDFFD|\uD83C\uDFFC)?|(?:\uD83D\uDC69(?:\uD83C\uDFFB\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|(?:\uD83C[\uDFFC-\uDFFF])\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69]))|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC69(?:\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83E\uDDD1(?:\u200D(?:\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|\uD83D\uDE36\u200D\uD83C\uDF2B|\uD83C\uDFF3\uFE0F\u200D\u26A7|\uD83D\uDC3B\u200D\u2744|(?:(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\uD83C\uDFF4\u200D\u2620|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD])\u200D[\u2640\u2642]|[\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u2328\u23CF\u23ED-\u23EF\u23F1\u23F2\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB\u25FC\u2600-\u2604\u260E\u2611\u2618\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u2692\u2694-\u2697\u2699\u269B\u269C\u26A0\u26A7\u26B0\u26B1\u26C8\u26CF\u26D1\u26D3\u26E9\u26F0\u26F1\u26F4\u26F7\u26F8\u2702\u2708\u2709\u270F\u2712\u2714\u2716\u271D\u2721\u2733\u2734\u2744\u2747\u2763\u27A1\u2934\u2935\u2B05-\u2B07\u3030\u303D\u3297\u3299]|\uD83C[\uDD70\uDD71\uDD7E\uDD7F\uDE02\uDE37\uDF21\uDF24-\uDF2C\uDF36\uDF7D\uDF96\uDF97\uDF99-\uDF9B\uDF9E\uDF9F\uDFCD\uDFCE\uDFD4-\uDFDF\uDFF5\uDFF7]|\uD83D[\uDC3F\uDCFD\uDD49\uDD4A\uDD6F\uDD70\uDD73\uDD76-\uDD79\uDD87\uDD8A-\uDD8D\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA\uDECB\uDECD-\uDECF\uDEE0-\uDEE5\uDEE9\uDEF0\uDEF3])\uFE0F|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDE35\u200D\uD83D\uDCAB|\uD83D\uDE2E\u200D\uD83D\uDCA8|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83E\uDDD1(?:\uD83C\uDFFF|\uD83C\uDFFE|\uD83C\uDFFD|\uD83C\uDFFC|\uD83C\uDFFB)?|\uD83D\uDC69(?:\uD83C\uDFFF|\uD83C\uDFFE|\uD83C\uDFFD|\uD83C\uDFFC|\uD83C\uDFFB)?|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF6\uD83C\uDDE6|\uD83C\uDDF4\uD83C\uDDF2|\uD83D\uDC08\u200D\u2B1B|\u2764\uFE0F\u200D(?:\uD83D\uDD25|\uD83E\uDE79)|\uD83D\uDC41\uFE0F|\uD83C\uDFF3\uFE0F|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|[#\*0-9]\uFE0F\u20E3|\u2764\uFE0F|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])|\uD83C\uDFF4|(?:[\u270A\u270B]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDC8F\uDC91\uDCAA\uDD7A\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0C\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD34\uDD36\uDD77\uDDB5\uDDB6\uDDBB\uDDD2\uDDD3\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270C\u270D]|\uD83D[\uDD74\uDD90])(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])|[\u270A\u270B]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC08\uDC15\uDC3B\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDC8F\uDC91\uDCAA\uDD7A\uDD95\uDD96\uDE2E\uDE35\uDE36\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0C\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD34\uDD36\uDD77\uDDB5\uDDB6\uDDBB\uDDD2\uDDD3\uDDD5]|\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD]|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF]|[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF84\uDF86-\uDF93\uDFA0-\uDFC1\uDFC5\uDFC6\uDFC8\uDFC9\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC07\uDC09-\uDC14\uDC16-\uDC3A\uDC3C-\uDC3E\uDC40\uDC44\uDC45\uDC51-\uDC65\uDC6A\uDC79-\uDC7B\uDC7D-\uDC80\uDC84\uDC88-\uDC8E\uDC90\uDC92-\uDCA9\uDCAB-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDDA4\uDDFB-\uDE2D\uDE2F-\uDE34\uDE37-\uDE44\uDE48-\uDE4A\uDE80-\uDEA2\uDEA4-\uDEB3\uDEB7-\uDEBF\uDEC1-\uDEC5\uDED0-\uDED2\uDED5-\uDED7\uDEEB\uDEEC\uDEF4-\uDEFC\uDFE0-\uDFEB]|\uD83E[\uDD0D\uDD0E\uDD10-\uDD17\uDD1D\uDD20-\uDD25\uDD27-\uDD2F\uDD3A\uDD3F-\uDD45\uDD47-\uDD76\uDD78\uDD7A-\uDDB4\uDDB7\uDDBA\uDDBC-\uDDCB\uDDD0\uDDE0-\uDDFF\uDE70-\uDE74\uDE78-\uDE7A\uDE80-\uDE86\uDE90-\uDEA8\uDEB0-\uDEB6\uDEC0-\uDEC2\uDED0-\uDED6]|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5-\uDED7\uDEEB\uDEEC\uDEF4-\uDEFC\uDFE0-\uDFEB]|\uD83E[\uDD0C-\uDD3A\uDD3C-\uDD45\uDD47-\uDD78\uDD7A-\uDDCB\uDDCD-\uDDFF\uDE70-\uDE74\uDE78-\uDE7A\uDE80-\uDE86\uDE90-\uDEA8\uDEB0-\uDEB6\uDEC0-\uDEC2\uDED0-\uDED6])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26A7\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5-\uDED7\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFC\uDFE0-\uDFEB]|\uD83E[\uDD0C-\uDD3A\uDD3C-\uDD45\uDD47-\uDD78\uDD7A-\uDDCB\uDDCD-\uDDFF\uDE70-\uDE74\uDE78-\uDE7A\uDE80-\uDE86\uDE90-\uDEA8\uDEB0-\uDEB6\uDEC0-\uDEC2\uDED0-\uDED6])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0C\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDD77\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
 	};
 	FD = O$1(uD);
-	m = 10, L$1 = (t = 0) => (u) => `\x1B[${u + t}m`, N$1 = (t = 0) => (u) => `\x1B[${38 + t};5;${u}m`, I$1 = (t = 0) => (u, F, e) => `\x1B[${38 + t};2;${u};${F};${e}m`, r$1 = {
+	m$2 = 10, L$1 = (t = 0) => (u) => `\x1B[${u + t}m`, N$2 = (t = 0) => (u) => `\x1B[${38 + t};5;${u}m`, I$2 = (t = 0) => (u, F, e) => `\x1B[${38 + t};2;${u};${F};${e}m`, r$2 = {
 		modifier: {
 			reset: [0, 0],
 			bold: [1, 22],
@@ -1087,16 +1088,16 @@ var init_prompt = __esmMin((() => {
 			bgWhiteBright: [107, 49]
 		}
 	};
-	Object.keys(r$1.modifier);
-	tD = Object.keys(r$1.color), eD = Object.keys(r$1.bgColor);
+	Object.keys(r$2.modifier);
+	tD = Object.keys(r$2.color), eD = Object.keys(r$2.bgColor);
 	[...tD, ...eD];
-	iD = sD(), v = new Set(["\x1B", ""]), CD = 39, w$1 = "\x07", W$1 = "[", rD = "]", R$1 = "m", y$1 = `${rD}8;;`, V$1 = (t) => `${v.values().next().value}${W$1}${t}${R$1}`, z = (t) => `${v.values().next().value}${y$1}${t}${w$1}`, ED = (t) => t.split(" ").map((u) => A$1(u)), _$1 = (t, u, F) => {
+	iD = sD(), v = new Set(["\x1B", ""]), CD = 39, w$1 = "\x07", W$1$1 = "[", rD = "]", R$2 = "m", y$1 = `${rD}8;;`, V$1 = (t) => `${v.values().next().value}${W$1$1}${t}${R$2}`, z = (t) => `${v.values().next().value}${y$1}${t}${w$1}`, ED = (t) => t.split(" ").map((u) => A$1$3(u)), _$2 = (t, u, F) => {
 		const e = [...u];
-		let s = false, i = false, D = A$1(T$1(t[t.length - 1]));
+		let s = false, i = false, D = A$1$3(T$1$3(t[t.length - 1]));
 		for (const [C, o] of e.entries()) {
-			const E = A$1(o);
+			const E = A$1$3(o);
 			if (D + E <= F ? t[t.length - 1] += o : (t.push(o), D = 0), v.has(o) && (s = true, i = e.slice(C + 1).join("").startsWith(y$1)), s) {
-				i ? o === w$1 && (s = false, i = false) : o === R$1 && (s = false);
+				i ? o === w$1 && (s = false, i = false) : o === R$2 && (s = false);
 				continue;
 			}
 			D += E, D === F && C < e.length - 1 && (t.push(""), D = 0);
@@ -1105,7 +1106,7 @@ var init_prompt = __esmMin((() => {
 	}, nD = (t) => {
 		const u = t.split(" ");
 		let F = u.length;
-		for (; F > 0 && !(A$1(u[F - 1]) > 0);) F--;
+		for (; F > 0 && !(A$1$3(u[F - 1]) > 0);) F--;
 		return F === u.length ? t : u.slice(0, F).join(" ") + u.slice(F).join("");
 	}, oD = (t, u, F = {}) => {
 		if (F.trim !== false && t.trim() === "") return "";
@@ -1114,21 +1115,21 @@ var init_prompt = __esmMin((() => {
 		let C = [""];
 		for (const [E, a] of t.split(" ").entries()) {
 			F.trim !== false && (C[C.length - 1] = C[C.length - 1].trimStart());
-			let n = A$1(C[C.length - 1]);
+			let n = A$1$3(C[C.length - 1]);
 			if (E !== 0 && (n >= u && (F.wordWrap === false || F.trim === false) && (C.push(""), n = 0), (n > 0 || F.trim === false) && (C[C.length - 1] += " ", n++)), F.hard && D[E] > u) {
 				const B = u - n, p = 1 + Math.floor((D[E] - B - 1) / u);
-				Math.floor((D[E] - 1) / u) < p && C.push(""), _$1(C, a, u);
+				Math.floor((D[E] - 1) / u) < p && C.push(""), _$2(C, a, u);
 				continue;
 			}
 			if (n + D[E] > u && n > 0 && D[E] > 0) {
 				if (F.wordWrap === false && n < u) {
-					_$1(C, a, u);
+					_$2(C, a, u);
 					continue;
 				}
 				C.push("");
 			}
 			if (n + D[E] > u && F.wordWrap === false) {
-				_$1(C, a, u);
+				_$2(C, a, u);
 				continue;
 			}
 			C[C.length - 1] += a;
@@ -1138,7 +1139,7 @@ var init_prompt = __esmMin((() => {
 `)];
 		for (const [E, a] of o.entries()) {
 			if (e += a, v.has(a)) {
-				const { groups: B } = new RegExp(`(?:\\${W$1}(?<code>\\d+)m|\\${y$1}(?<uri>.*)${w$1})`).exec(o.slice(E).join("")) || { groups: {} };
+				const { groups: B } = new RegExp(`(?:\\${W$1$1}(?<code>\\d+)m|\\${y$1}(?<uri>.*)${w$1})`).exec(o.slice(E).join("")) || { groups: {} };
 				if (B.code !== void 0) {
 					const p = Number.parseFloat(B.code);
 					s = p === CD ? void 0 : p;
@@ -1151,7 +1152,7 @@ var init_prompt = __esmMin((() => {
 		}
 		return e;
 	};
-	c$1 = {
+	c$3 = {
 		actions: new Set([
 			"up",
 			"down",
@@ -1177,10 +1178,10 @@ var init_prompt = __esmMin((() => {
 		configurable: true,
 		writable: true,
 		value: F
-	}) : t[u] = F, h = (t, u, F) => (pD(t, typeof u != "symbol" ? u + "" : u, F), F);
-	x = class {
+	}) : t[u] = F, h$1 = (t, u, F) => (pD(t, typeof u != "symbol" ? u + "" : u, F), F);
+	x$1 = class {
 		constructor(u, F = true) {
-			h(this, "input"), h(this, "output"), h(this, "_abortSignal"), h(this, "rl"), h(this, "opts"), h(this, "_render"), h(this, "_track", false), h(this, "_prevFrame", ""), h(this, "_subscribers", /* @__PURE__ */ new Map()), h(this, "_cursor", 0), h(this, "state", "initial"), h(this, "error", ""), h(this, "value");
+			h$1(this, "input"), h$1(this, "output"), h$1(this, "_abortSignal"), h$1(this, "rl"), h$1(this, "opts"), h$1(this, "_render"), h$1(this, "_track", false), h$1(this, "_prevFrame", ""), h$1(this, "_subscribers", /* @__PURE__ */ new Map()), h$1(this, "_cursor", 0), h$1(this, "state", "initial"), h$1(this, "error", ""), h$1(this, "value");
 			const { input: e = stdin, output: s = stdout, render: i, signal: D, ...C } = u;
 			this.opts = C, this.onKeypress = this.onKeypress.bind(this), this.close = this.close.bind(this), this.render = this.render.bind(this), this._render = i.bind(this), this._track = F, this._abortSignal = D, this.input = e, this.output = s;
 		}
@@ -1216,13 +1217,13 @@ var init_prompt = __esmMin((() => {
 				const e = new WriteStream(0);
 				e._write = (s, i, D) => {
 					this._track && (this.value = this.rl?.line.replace(/\t/g, ""), this._cursor = this.rl?.cursor ?? 0, this.emit("value", this.value)), D();
-				}, this.input.pipe(e), this.rl = f.createInterface({
+				}, this.input.pipe(e), this.rl = l__default.createInterface({
 					input: this.input,
 					output: e,
 					tabSize: 2,
 					prompt: "",
 					escapeCodeTimeout: 50
-				}), f.emitKeypressEvents(this.input, this.rl), this.rl.prompt(), this.opts.initialValue !== void 0 && this._track && this.rl.write(this.opts.initialValue), this.input.on("keypress", this.onKeypress), d$1(this.input, true), this.output.on("resize", this.render), this.render(), this.once("submit", () => {
+				}), l__default.emitKeypressEvents(this.input, this.rl), this.rl.prompt(), this.opts.initialValue !== void 0 && this._track && this.rl.write(this.opts.initialValue), this.input.on("keypress", this.onKeypress), d$1(this.input, true), this.output.on("resize", this.render), this.render(), this.once("submit", () => {
 					this.output.write(srcExports.cursor.show), this.output.off("resize", this.render), d$1(this.input, false), u(this.value);
 				}), this.once("cancel", () => {
 					this.output.write(srcExports.cursor.show), this.output.off("resize", this.render), d$1(this.input, false), u(S$1);
@@ -1230,7 +1231,7 @@ var init_prompt = __esmMin((() => {
 			});
 		}
 		onKeypress(u, F) {
-			if (this.state === "error" && (this.state = "active"), F?.name && (!this._track && c$1.aliases.has(F.name) && this.emit("cursor", c$1.aliases.get(F.name)), c$1.actions.has(F.name) && this.emit("cursor", F.name)), u && (u.toLowerCase() === "y" || u.toLowerCase() === "n") && this.emit("confirm", u.toLowerCase() === "y"), u === "	" && this.opts.placeholder && (this.value || (this.rl?.write(this.opts.placeholder), this.emit("value", this.opts.placeholder))), u && this.emit("key", u.toLowerCase()), F?.name === "return") {
+			if (this.state === "error" && (this.state = "active"), F?.name && (!this._track && c$3.aliases.has(F.name) && this.emit("cursor", c$3.aliases.get(F.name)), c$3.actions.has(F.name) && this.emit("cursor", F.name)), u && (u.toLowerCase() === "y" || u.toLowerCase() === "n") && this.emit("confirm", u.toLowerCase() === "y"), u === "	" && this.opts.placeholder && (this.value || (this.rl?.write(this.opts.placeholder), this.emit("value", this.opts.placeholder))), u && this.emit("key", u.toLowerCase()), F?.name === "return") {
 				if (this.opts.validate) {
 					const e = this.opts.validate(this.value);
 					e && (this.error = e instanceof Error ? e.message : e, this.state = "error", this.rl?.write(this.value));
@@ -1281,7 +1282,7 @@ var init_prompt = __esmMin((() => {
 			}
 		}
 	};
-	fD = class extends x {
+	fD = class extends x$1 {
 		get cursor() {
 			return this.value ? 0 : 1;
 		}
@@ -1304,7 +1305,7 @@ var init_prompt = __esmMin((() => {
 		writable: true,
 		value: F
 	}) : t[u] = F, Y = (t, u, F) => (mD(t, typeof u != "symbol" ? u + "" : u, F), F);
-	wD = class extends x {
+	wD = class extends x$1 {
 		constructor(u) {
 			super(u, false), Y(this, "options"), Y(this, "cursor", 0), this.options = u.options, this.value = [...u.initialValues ?? []], this.cursor = Math.max(this.options.findIndex(({ value: F }) => F === u.cursorAt), 0), this.on("key", (F) => {
 				F === "a" && this.toggleAll();
@@ -1342,7 +1343,7 @@ var init_prompt = __esmMin((() => {
 		writable: true,
 		value: F
 	}) : t[u] = F, q = (t, u, F) => ($D(t, typeof u != "symbol" ? u + "" : u, F), F);
-	jD = class extends x {
+	jD = class extends x$1 {
 		constructor(u) {
 			super(u, false), q(this, "options"), q(this, "cursor", 0), this.options = u.options, this.cursor = this.options.findIndex(({ value: F }) => F === u.initialValue), this.cursor === -1 && (this.cursor = 0), this.changeValue(), this.on("cursor", (F) => {
 				switch (F) {
@@ -1365,7 +1366,7 @@ var init_prompt = __esmMin((() => {
 			this.value = this._value.value;
 		}
 	};
-	PD = class extends x {
+	PD = class extends x$1 {
 		get valueWithCursor() {
 			if (this.state === "submit") return this.value;
 			if (this.cursor >= this.value.length) return `${this.value}\u2588`;
@@ -1381,13 +1382,13 @@ var init_prompt = __esmMin((() => {
 			});
 		}
 	};
-	V = ce(), u$1 = (t, n) => V ? t : n, le = u$1("❯", ">"), L$2 = u$1("■", "x"), W = u$1("▲", "x"), C$1 = u$1("✔", "√"), o$1 = u$1(""), d = u$1(""), k = u$1("●", ">"), P = u$1("○", " "), A$2 = u$1("◻", "[•]"), T$2 = u$1("◼", "[+]"), F$1 = u$1("◻", "[ ]"), w = (t) => {
+	V$2 = ce(), u$5 = (t, n) => V$2 ? t : n, le = u$5("❯", ">"), L$2 = u$5("■", "x"), W$2 = u$5("▲", "x"), C$3 = u$5("✔", "√"), o$2 = u$5(""), d = u$5(""), k = u$5("●", ">"), P$2 = u$5("○", " "), A$4 = u$5("◻", "[•]"), T$4 = u$5("◼", "[+]"), F$1 = u$5("◻", "[ ]"), w = (t) => {
 		switch (t) {
 			case "initial":
 			case "active": return e.cyan(le);
 			case "cancel": return e.red(L$2);
-			case "error": return e.yellow(W);
-			case "submit": return e.green(C$1);
+			case "error": return e.yellow(W$2);
+			case "submit": return e.green(C$3);
 		}
 	}, B = (t) => {
 		const { cursor: n, options: s, style: r } = t, i = t.maxItems ?? Number.POSITIVE_INFINITY, a = Math.max(process.stdout.rows - 4, 0), c = Math.min(a, Math.max(i, 5));
@@ -1404,18 +1405,18 @@ var init_prompt = __esmMin((() => {
 		defaultValue: t.defaultValue,
 		initialValue: t.initialValue,
 		render() {
-			const n = `${e.gray(o$1)}
+			const n = `${e.gray(o$2)}
 ${w(this.state)} ${t.message}
 `, s = t.placeholder ? e.inverse(t.placeholder[0]) + e.dim(t.placeholder.slice(1)) : e.inverse(e.hidden("_")), r = this.value ? this.valueWithCursor : s;
 			switch (this.state) {
 				case "error": return `${n.trim()}
-${e.yellow(o$1)} ${r}
+${e.yellow(o$2)} ${r}
 ${e.yellow(d)} ${e.yellow(this.error)}
 `;
-				case "submit": return `${n}${e.gray(o$1)} ${e.dim(this.value || t.placeholder)}`;
-				case "cancel": return `${n}${e.gray(o$1)} ${e.strikethrough(e.dim(this.value ?? ""))}${this.value?.trim() ? `
-${e.gray(o$1)}` : ""}`;
-				default: return `${n}${e.cyan(o$1)} ${r}
+				case "submit": return `${n}${e.gray(o$2)} ${e.dim(this.value || t.placeholder)}`;
+				case "cancel": return `${n}${e.gray(o$2)} ${e.strikethrough(e.dim(this.value ?? ""))}${this.value?.trim() ? `
+${e.gray(o$2)}` : ""}`;
+				default: return `${n}${e.cyan(o$2)} ${r}
 ${e.cyan(d)}
 `;
 			}
@@ -1427,14 +1428,14 @@ ${e.cyan(d)}
 			inactive: s,
 			initialValue: t.initialValue ?? true,
 			render() {
-				const r = `${e.gray(o$1)}
+				const r = `${e.gray(o$2)}
 ${w(this.state)} ${t.message}
 `, i = this.value ? n : s;
 				switch (this.state) {
-					case "submit": return `${r}${e.gray(o$1)} ${e.dim(i)}`;
-					case "cancel": return `${r}${e.gray(o$1)} ${e.strikethrough(e.dim(i))}
-${e.gray(o$1)}`;
-					default: return `${r}${e.cyan(o$1)} ${this.value ? `${e.green(k)} ${n}` : `${e.dim(P)} ${e.dim(n)}`} ${e.dim("/")} ${this.value ? `${e.dim(P)} ${e.dim(s)}` : `${e.green(k)} ${s}`}
+					case "submit": return `${r}${e.gray(o$2)} ${e.dim(i)}`;
+					case "cancel": return `${r}${e.gray(o$2)} ${e.strikethrough(e.dim(i))}
+${e.gray(o$2)}`;
+					default: return `${r}${e.cyan(o$2)} ${this.value ? `${e.green(k)} ${n}` : `${e.dim(P$2)} ${e.dim(n)}`} ${e.dim("/")} ${this.value ? `${e.dim(P$2)} ${e.dim(s)}` : `${e.green(k)} ${s}`}
 ${e.cyan(d)}
 `;
 				}
@@ -1447,27 +1448,27 @@ ${e.cyan(d)}
 				case "selected": return `${e.dim(i)}`;
 				case "active": return `${e.green(k)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}`;
 				case "cancelled": return `${e.strikethrough(e.dim(i))}`;
-				default: return `${e.dim(P)} ${e.dim(i)}`;
+				default: return `${e.dim(P$2)} ${e.dim(i)}`;
 			}
 		};
 		return new jD({
 			options: t.options,
 			initialValue: t.initialValue,
 			render() {
-				const s = `${e.gray(o$1)}
+				const s = `${e.gray(o$2)}
 ${w(this.state)} ${t.message}
 `;
 				switch (this.state) {
-					case "submit": return `${s}${e.gray(o$1)} ${n(this.options[this.cursor], "selected")}`;
-					case "cancel": return `${s}${e.gray(o$1)} ${n(this.options[this.cursor], "cancelled")}
-${e.gray(o$1)}`;
-					default: return `${s}${e.cyan(o$1)} ${B({
+					case "submit": return `${s}${e.gray(o$2)} ${n(this.options[this.cursor], "selected")}`;
+					case "cancel": return `${s}${e.gray(o$2)} ${n(this.options[this.cursor], "cancelled")}
+${e.gray(o$2)}`;
+					default: return `${s}${e.cyan(o$2)} ${B({
 						cursor: this.cursor,
 						options: this.options,
 						maxItems: t.maxItems,
 						style: (r, i) => n(r, i ? "active" : "inactive")
 					}).join(`
-${e.cyan(o$1)}  `)}
+${e.cyan(o$2)}  `)}
 ${e.cyan(d)}
 `;
 				}
@@ -1476,7 +1477,7 @@ ${e.cyan(d)}
 	}, fe = (t) => {
 		const n = (s, r) => {
 			const i = s.label ?? String(s.value);
-			return r === "active" ? `${e.cyan(A$2)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r === "selected" ? `${e.green(T$2)} ${e.dim(i)}` : r === "cancelled" ? `${e.strikethrough(e.dim(i))}` : r === "active-selected" ? `${e.green(T$2)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r === "submitted" ? `${e.dim(i)}` : `${e.dim(F$1)} ${e.dim(i)}`;
+			return r === "active" ? `${e.cyan(A$4)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r === "selected" ? `${e.green(T$4)} ${e.dim(i)}` : r === "cancelled" ? `${e.strikethrough(e.dim(i))}` : r === "active-selected" ? `${e.green(T$4)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r === "submitted" ? `${e.dim(i)}` : `${e.dim(F$1)} ${e.dim(i)}`;
 		};
 		return new wD({
 			options: t.options,
@@ -1488,69 +1489,69 @@ ${e.cyan(d)}
 ${e.reset(e.dim(`Press ${e.gray(e.bgWhite(e.inverse(" space ")))} to select, ${e.gray(e.bgWhite(e.inverse(" enter ")))} to submit`))}`;
 			},
 			render() {
-				const s = `${e.gray(o$1)}
+				const s = `${e.gray(o$2)}
 ${w(this.state)} ${t.message}
 `, r = (i, a) => {
 					const c = this.value.includes(i.value);
 					return a && c ? n(i, "active-selected") : c ? n(i, "selected") : n(i, a ? "active" : "inactive");
 				};
 				switch (this.state) {
-					case "submit": return `${s}${e.gray(o$1)} ${this.options.filter(({ value: i }) => this.value.includes(i)).map((i) => n(i, "submitted")).join(e.dim(", ")) || e.dim("none")}`;
+					case "submit": return `${s}${e.gray(o$2)} ${this.options.filter(({ value: i }) => this.value.includes(i)).map((i) => n(i, "submitted")).join(e.dim(", ")) || e.dim("none")}`;
 					case "cancel": {
 						const i = this.options.filter(({ value: a }) => this.value.includes(a)).map((a) => n(a, "cancelled")).join(e.dim(", "));
-						return `${s}${e.gray(o$1)} ${i.trim() ? `${i}
-${e.gray(o$1)}` : ""}`;
+						return `${s}${e.gray(o$2)} ${i.trim() ? `${i}
+${e.gray(o$2)}` : ""}`;
 					}
 					case "error": {
 						const i = this.error.split(`
 `).map((a, c) => c === 0 ? `${e.yellow(d)} ${e.yellow(a)}` : `   ${a}`).join(`
 `);
-						return `${s + e.yellow(o$1)} ${B({
+						return `${s + e.yellow(o$2)} ${B({
 							options: this.options,
 							cursor: this.cursor,
 							maxItems: t.maxItems,
 							style: r
 						}).join(`
-${e.yellow(o$1)}  `)}
+${e.yellow(o$2)}  `)}
 ${i}
 `;
 					}
-					default: return `${s}${e.cyan(o$1)} ${B({
+					default: return `${s}${e.cyan(o$2)} ${B({
 						options: this.options,
 						cursor: this.cursor,
 						maxItems: t.maxItems,
 						style: r
 					}).join(`
-${e.cyan(o$1)}  `)}
+${e.cyan(o$2)}  `)}
 ${e.cyan(d)}
 `;
 				}
 			}
 		}).prompt();
 	};
-	`${e.gray(o$1)}`;
+	`${e.gray(o$2)}`;
 	kCancel = Symbol.for("cancel");
 }));
 //#endregion
 //#region node_modules/.pnpm/consola@3.4.2/node_modules/consola/dist/index.mjs
-const r = Object.create(null), i = (e) => globalThis.process?.env || import.meta.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (e ? r : globalThis), o = new Proxy(r, {
+const r$1 = Object.create(null), i$1 = (e) => globalThis.process?.env || import.meta.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (e ? r$1 : globalThis), o$1 = new Proxy(r$1, {
 	get(e, s) {
-		return i()[s] ?? r[s];
+		return i$1()[s] ?? r$1[s];
 	},
 	has(e, s) {
-		return s in i() || s in r;
+		return s in i$1() || s in r$1;
 	},
 	set(e, s, E) {
-		const B = i(true);
+		const B = i$1(true);
 		return B[s] = E, true;
 	},
 	deleteProperty(e, s) {
 		if (!s) return false;
-		const E = i(true);
+		const E = i$1(true);
 		return delete E[s], true;
 	},
 	ownKeys() {
-		const e = i(true);
+		const e = i$1(true);
 		return Object.keys(e);
 	}
 }), t = typeof process < "u" && process.env && process.env.NODE_ENV || "", f$1 = [
@@ -1644,7 +1645,7 @@ const r = Object.create(null), i = (e) => globalThis.process?.env || import.meta
 		{ ci: true }
 	]
 ];
-function b() {
+function b$2() {
 	if (globalThis.process?.env) for (const e of f$1) {
 		const s = e[1] || e[0];
 		if (globalThis.process?.env[s]) return {
@@ -1660,31 +1661,31 @@ function b() {
 		ci: false
 	};
 }
-const l = b();
-l.name;
-function n(e) {
+const l$1 = b$2();
+l$1.name;
+function n$2(e) {
 	return e ? e !== "false" : false;
 }
-const I = globalThis.process?.platform || "", T = n(o.CI) || l.ci !== false, a = n(globalThis.process?.stdout && globalThis.process?.stdout.isTTY), g = n(o.DEBUG), R = t === "test" || n(o.TEST);
-o.MINIMAL;
-const A = /^win/i.test(I);
-!n(o.NO_COLOR) && (n(o.FORCE_COLOR) || (a || A) && o.TERM);
-const C = (globalThis.process?.versions?.node || "").replace(/^v/, "") || null;
-Number(C?.split(".")[0]);
-const y = globalThis.process || Object.create(null), _ = { versions: {} };
+const I$1 = globalThis.process?.platform || "", T$2 = n$2(o$1.CI) || l$1.ci !== false, a$1 = n$2(globalThis.process?.stdout && globalThis.process?.stdout.isTTY), g$1 = n$2(o$1.DEBUG), R$1 = t === "test" || n$2(o$1.TEST);
+o$1.MINIMAL;
+const A$2 = /^win/i.test(I$1);
+!n$2(o$1.NO_COLOR) && (n$2(o$1.FORCE_COLOR) || (a$1 || A$2) && o$1.TERM);
+const C$2 = (globalThis.process?.versions?.node || "").replace(/^v/, "") || null;
+Number(C$2?.split(".")[0]);
+const y = globalThis.process || Object.create(null), _$1 = { versions: {} };
 new Proxy(y, { get(e, s) {
-	if (s === "env") return o;
+	if (s === "env") return o$1;
 	if (s in e) return e[s];
-	if (s in _) return _[s];
+	if (s in _$1) return _$1[s];
 } });
-const c = globalThis.process?.release?.name === "node", O = !!globalThis.Bun || !!globalThis.process?.versions?.bun, D = !!globalThis.Deno, L = !!globalThis.fastly, S = !!globalThis.Netlify, u = !!globalThis.EdgeRuntime, N = globalThis.navigator?.userAgent === "Cloudflare-Workers", F = [
+const c$2 = globalThis.process?.release?.name === "node", O = !!globalThis.Bun || !!globalThis.process?.versions?.bun, D = !!globalThis.Deno, L = !!globalThis.fastly, S = !!globalThis.Netlify, u$4 = !!globalThis.EdgeRuntime, N$1 = globalThis.navigator?.userAgent === "Cloudflare-Workers", F = [
 	[S, "netlify"],
-	[u, "edge-light"],
-	[N, "workerd"],
+	[u$4, "edge-light"],
+	[N$1, "workerd"],
 	[L, "fastly"],
 	[D, "deno"],
 	[O, "bun"],
-	[c, "node"]
+	[c$2, "node"]
 ];
 function G() {
 	const e = F.find((s) => s[0]);
@@ -1703,7 +1704,7 @@ function stripAnsi(string) {
 function isAmbiguous(x) {
 	return x === 161 || x === 164 || x === 167 || x === 168 || x === 170 || x === 173 || x === 174 || x >= 176 && x <= 180 || x >= 182 && x <= 186 || x >= 188 && x <= 191 || x === 198 || x === 208 || x === 215 || x === 216 || x >= 222 && x <= 225 || x === 230 || x >= 232 && x <= 234 || x === 236 || x === 237 || x === 240 || x === 242 || x === 243 || x >= 247 && x <= 250 || x === 252 || x === 254 || x === 257 || x === 273 || x === 275 || x === 283 || x === 294 || x === 295 || x === 299 || x >= 305 && x <= 307 || x === 312 || x >= 319 && x <= 322 || x === 324 || x >= 328 && x <= 331 || x === 333 || x === 338 || x === 339 || x === 358 || x === 359 || x === 363 || x === 462 || x === 464 || x === 466 || x === 468 || x === 470 || x === 472 || x === 474 || x === 476 || x === 593 || x === 609 || x === 708 || x === 711 || x >= 713 && x <= 715 || x === 717 || x === 720 || x >= 728 && x <= 731 || x === 733 || x === 735 || x >= 768 && x <= 879 || x >= 913 && x <= 929 || x >= 931 && x <= 937 || x >= 945 && x <= 961 || x >= 963 && x <= 969 || x === 1025 || x >= 1040 && x <= 1103 || x === 1105 || x === 8208 || x >= 8211 && x <= 8214 || x === 8216 || x === 8217 || x === 8220 || x === 8221 || x >= 8224 && x <= 8226 || x >= 8228 && x <= 8231 || x === 8240 || x === 8242 || x === 8243 || x === 8245 || x === 8251 || x === 8254 || x === 8308 || x === 8319 || x >= 8321 && x <= 8324 || x === 8364 || x === 8451 || x === 8453 || x === 8457 || x === 8467 || x === 8470 || x === 8481 || x === 8482 || x === 8486 || x === 8491 || x === 8531 || x === 8532 || x >= 8539 && x <= 8542 || x >= 8544 && x <= 8555 || x >= 8560 && x <= 8569 || x === 8585 || x >= 8592 && x <= 8601 || x === 8632 || x === 8633 || x === 8658 || x === 8660 || x === 8679 || x === 8704 || x === 8706 || x === 8707 || x === 8711 || x === 8712 || x === 8715 || x === 8719 || x === 8721 || x === 8725 || x === 8730 || x >= 8733 && x <= 8736 || x === 8739 || x === 8741 || x >= 8743 && x <= 8748 || x === 8750 || x >= 8756 && x <= 8759 || x === 8764 || x === 8765 || x === 8776 || x === 8780 || x === 8786 || x === 8800 || x === 8801 || x >= 8804 && x <= 8807 || x === 8810 || x === 8811 || x === 8814 || x === 8815 || x === 8834 || x === 8835 || x === 8838 || x === 8839 || x === 8853 || x === 8857 || x === 8869 || x === 8895 || x === 8978 || x >= 9312 && x <= 9449 || x >= 9451 && x <= 9547 || x >= 9552 && x <= 9587 || x >= 9600 && x <= 9615 || x >= 9618 && x <= 9621 || x === 9632 || x === 9633 || x >= 9635 && x <= 9641 || x === 9650 || x === 9651 || x === 9654 || x === 9655 || x === 9660 || x === 9661 || x === 9664 || x === 9665 || x >= 9670 && x <= 9672 || x === 9675 || x >= 9678 && x <= 9681 || x >= 9698 && x <= 9701 || x === 9711 || x === 9733 || x === 9734 || x === 9737 || x === 9742 || x === 9743 || x === 9756 || x === 9758 || x === 9792 || x === 9794 || x === 9824 || x === 9825 || x >= 9827 && x <= 9829 || x >= 9831 && x <= 9834 || x === 9836 || x === 9837 || x === 9839 || x === 9886 || x === 9887 || x === 9919 || x >= 9926 && x <= 9933 || x >= 9935 && x <= 9939 || x >= 9941 && x <= 9953 || x === 9955 || x === 9960 || x === 9961 || x >= 9963 && x <= 9969 || x === 9972 || x >= 9974 && x <= 9977 || x === 9979 || x === 9980 || x === 9982 || x === 9983 || x === 10045 || x >= 10102 && x <= 10111 || x >= 11094 && x <= 11097 || x >= 12872 && x <= 12879 || x >= 57344 && x <= 63743 || x >= 65024 && x <= 65039 || x === 65533 || x >= 127232 && x <= 127242 || x >= 127248 && x <= 127277 || x >= 127280 && x <= 127337 || x >= 127344 && x <= 127373 || x === 127375 || x === 127376 || x >= 127387 && x <= 127404 || x >= 917760 && x <= 917999 || x >= 983040 && x <= 1048573 || x >= 1048576 && x <= 1114109;
 }
-function isFullWidth(x) {
+function isFullWidth$1(x) {
 	return x === 12288 || x >= 65281 && x <= 65376 || x >= 65504 && x <= 65510;
 }
 function isWide(x) {
@@ -1714,7 +1715,7 @@ function validate(codePoint) {
 }
 function eastAsianWidth(codePoint, { ambiguousAsWide = false } = {}) {
 	validate(codePoint);
-	if (isFullWidth(codePoint) || isWide(codePoint) || ambiguousAsWide && isAmbiguous(codePoint)) return 2;
+	if (isFullWidth$1(codePoint) || isWide(codePoint) || ambiguousAsWide && isAmbiguous(codePoint)) return 2;
 	return 1;
 }
 const emojiRegex = () => {
@@ -1745,10 +1746,10 @@ function stringWidth$1(string, options = {}) {
 	}
 	return width;
 }
-function isUnicodeSupported() {
-	const { env } = g$1;
+function isUnicodeSupported$1() {
+	const { env } = process$1;
 	const { TERM, TERM_PROGRAM } = env;
-	if (g$1.platform !== "win32") return TERM !== "linux";
+	if (process$1.platform !== "win32") return TERM !== "linux";
 	return Boolean(env.WT_SESSION) || Boolean(env.TERMINUS_SUBLIME) || env.ConEmuTask === "{cmd::Cmder}" || TERM_PROGRAM === "Terminus-Sublime" || TERM_PROGRAM === "vscode" || TERM === "xterm-256color" || TERM === "alacritty" || TERM === "rxvt-unicode" || TERM === "rxvt-unicode-256color" || env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
 }
 const TYPE_COLOR_MAP = {
@@ -1762,8 +1763,8 @@ const LEVEL_COLOR_MAP = {
 	0: "red",
 	1: "yellow"
 };
-const unicode = isUnicodeSupported();
-const s = (c, fallback) => unicode ? c : fallback;
+const unicode$1 = isUnicodeSupported$1();
+const s = (c, fallback) => unicode$1 ? c : fallback;
 const TYPE_ICONS = {
 	error: s("✖", "×"),
 	fatal: s("✖", "×"),
@@ -1796,7 +1797,7 @@ ${indent}`);
 	}
 	formatLogObj(logObj, opts) {
 		const [message, ...additional] = this.formatArgs(logObj.args, opts).split("\n");
-		if (logObj.type === "box") return box(characterFormat(message + (additional.length > 0 ? "\n" + additional.join("\n") : "")), {
+		if (logObj.type === "box") return box$1(characterFormat(message + (additional.length > 0 ? "\n" + additional.join("\n") : "")), {
 			title: logObj.title ? characterFormat(logObj.title) : void 0,
 			style: logObj.style
 		});
@@ -1836,13 +1837,13 @@ function createConsola(options = {}) {
 		stdout: process.stdout,
 		stderr: process.stderr,
 		prompt: (...args) => Promise.resolve().then(() => (init_prompt(), prompt_exports)).then((m) => m.prompt(...args)),
-		reporters: options.reporters || [options.fancy ?? !(T || R) ? new FancyReporter() : new BasicReporter()],
+		reporters: options.reporters || [options.fancy ?? !(T$2 || R$1) ? new FancyReporter() : new BasicReporter()],
 		...options
 	});
 }
 function _getDefaultLogLevel() {
-	if (g) return LogLevels.debug;
-	if (R) return LogLevels.warn;
+	if (g$1) return LogLevels.debug;
+	if (R$1) return LogLevels.warn;
 	return LogLevels.info;
 }
 const consola = createConsola();
@@ -2256,7 +2257,7 @@ function validateConfig(raw) {
 	};
 }
 const loadConfig = async (dir) => {
-	const filePath = path.join(dir, CONFIG_FILE);
+	const filePath = path$1.join(dir, CONFIG_FILE);
 	const text = await fs.readFile(filePath, "utf8").catch((err) => {
 		if (isNodeError(err) && err.code === "ENOENT") return null;
 		return { __unreadable: `config file unreadable: ${err instanceof Error ? err.message : String(err)}` };
@@ -2284,7 +2285,7 @@ const saveConfig = async (dir, config, preserve) => {
 		...preserve ?? {},
 		...config
 	};
-	await fs.writeFile(path.join(dir, CONFIG_FILE), `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+	await fs.writeFile(path$1.join(dir, CONFIG_FILE), `${JSON.stringify(merged, null, 2)}\n`, "utf8");
 };
 function tryParseJson(text) {
 	try {
@@ -2310,8 +2311,14 @@ function isNodeError(err) {
 //#endregion
 //#region src/core/scopes.ts
 const PREFIXED_RE = /^(squad|stack|project)\/([a-z0-9][a-z0-9-]*)$/;
-const SCOPE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+/** Human-readable rule text — single source for both promote's gate-1 error
+* and the interactive scope prompt's validator. */
+const SCOPE_RULE = "org, squad/<s>, stack/<k>, or project/<p>";
 const isValidScope = (scope) => scope === "org" || PREFIXED_RE.test(scope);
+/** Human-readable rule text — single source for both promote's gate-1 error
+* and the interactive name/scope prompts' validators. */
+const SCOPE_ID_RULE = "/^[a-z0-9][a-z0-9-]*$/";
+const SCOPE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const sessionScopes = (input) => {
 	const sortedSquads = [...input.squads].map((s) => `squad/${s}`).sort((a, b) => a.localeCompare(b));
 	const stacks = [...new Set(Object.values(input.workspaces).flat().filter((s) => s.startsWith("stack/") && isValidScope(s)))].sort((a, b) => a.localeCompare(b));
@@ -2323,6 +2330,7 @@ const sessionScopes = (input) => {
 	];
 };
 const entryApplies = (entryScope, scopes) => scopes.includes(entryScope);
+const splitSquads = (raw) => raw.split(",").map((s) => s.trim()).filter(Boolean);
 //#endregion
 //#region src/core/digest.ts
 const estimateTokens = (s) => Math.ceil(s.length / 4);
@@ -2573,12 +2581,12 @@ function build$2(options, isSynchronous) {
 }
 function isRecursive(path, resolved, state) {
 	if (state.options.useRealPaths) return isRecursiveUsingRealPaths(resolved, state);
-	let parent = dirname(path);
+	let parent = dirname$1(path);
 	let depth = 1;
 	while (parent !== state.root && depth < 2) {
 		const resolvedPath = state.symlinks.get(parent);
 		if (!!resolvedPath && (resolvedPath === resolved || resolvedPath.startsWith(resolved) || resolved.startsWith(resolvedPath))) depth++;
-		else parent = dirname(parent);
+		else parent = dirname$1(parent);
 	}
 	state.symlinks.set(path, resolved);
 	return depth > 1;
@@ -2775,7 +2783,7 @@ var Walker = class {
 					} else {
 						resolvedPath = useRealPaths ? resolvedPath : path;
 						const filename = basename(resolvedPath);
-						const directoryPath$1 = normalizePath(dirname(resolvedPath), this.state.options);
+						const directoryPath$1 = normalizePath(dirname$1(resolvedPath), this.state.options);
 						resolvedPath = this.joinPath(filename, directoryPath$1);
 						this.pushFile(resolvedPath, files, this.state.counts, filters);
 					}
@@ -4921,7 +4929,7 @@ function isDynamicPattern(pattern, options) {
 	const scan = import_picomatch.default.scan(pattern);
 	return scan.isGlob || scan.negated;
 }
-function log(...tasks) {
+function log$1(...tasks) {
 	console.log(`[tinyglobby ${(/* @__PURE__ */ new Date()).toLocaleTimeString("es")}]`, ...tasks);
 }
 function ensureStringArray(value) {
@@ -4997,7 +5005,7 @@ function buildCrawler(options, patterns) {
 		depthOffset: 0
 	};
 	const processed = processPatterns(options, patterns, props);
-	if (options.debug) log("internal processing patterns:", processed);
+	if (options.debug) log$1("internal processing patterns:", processed);
 	const { absolute, caseSensitiveMatch, debug, dot, followSymbolicLinks, onlyDirectories } = options;
 	const root = props.root.replace(BACKSLASHES, "");
 	const matchOptions = {
@@ -5023,7 +5031,7 @@ function buildCrawler(options, patterns) {
 		filters: [debug ? (p, isDirectory) => {
 			const path = format(p, isDirectory);
 			const matches = matcher(path) && !ignore(path);
-			if (matches) log(`matched ${path}`);
+			if (matches) log$1(`matched ${path}`);
 			return matches;
 		} : (p, isDirectory) => {
 			const path = format(p, isDirectory);
@@ -5031,7 +5039,7 @@ function buildCrawler(options, patterns) {
 		}],
 		exclude: debug ? (_, p) => {
 			const skipped = excludePredicate(_, p);
-			log(`${skipped ? "skipped" : "crawling"} ${p}`);
+			log$1(`${skipped ? "skipped" : "crawling"} ${p}`);
 			return skipped;
 		} : excludePredicate,
 		fs: options.fs,
@@ -5046,7 +5054,7 @@ function buildCrawler(options, patterns) {
 		maxDepth,
 		signal: options.signal
 	}).crawl(root);
-	if (options.debug) log("internal properties:", {
+	if (options.debug) log$1("internal properties:", {
 		...props,
 		root
 	});
@@ -5070,13 +5078,13 @@ function getOptions(options) {
 	opts.ignore = ensureStringArray(opts.ignore);
 	opts.fs && (opts.fs = {
 		readdir: opts.fs.readdir || readdir$1,
-		readdirSync: opts.fs.readdirSync || readdirSync,
+		readdirSync: opts.fs.readdirSync || readdirSync$1,
 		realpath: opts.fs.realpath || realpath,
 		realpathSync: opts.fs.realpathSync || realpathSync$1,
 		stat: opts.fs.stat || stat,
 		statSync: opts.fs.statSync || statSync
 	});
-	if (opts.debug) log("globbing with options:", opts);
+	if (opts.debug) log$1("globbing with options:", opts);
 	return opts;
 }
 function getCrawler(globInput, inputOptions = {}) {
@@ -11704,8 +11712,31 @@ var import_dist = (/* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.visit = visit.visit;
 	exports.visitAsync = visit.visitAsync;
 })))();
+/** Canonical entry types — single source for the promote type select, gate-1
+* validation, and parseEntry's frontmatter check. */
+const ENTRY_TYPES = ["standard", "lesson"];
+const isEntryType = (value) => ENTRY_TYPES.includes(value);
+/** Human-readable rule text — single source for both promote's gate-1 error
+* and the interactive date prompts' validators. */
+const DATE_RULE = "YYYY-MM-DD";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const VALID_TYPES = new Set(["standard", "lesson"]);
+/**
+* Format AND calendar validity — DATE_RE alone accepts nonsense like
+* "2026-13-99". Builds the UTC date from the parts and requires an exact
+* year/month/day round-trip: JS's Date normalizes out-of-range components
+* (month 13 rolls into next year, day 30 in February rolls into March)
+* rather than rejecting them, so a round-trip mismatch means the calendar
+* date was never real. UTC-only — never reads the local timezone.
+*/
+const isValidDate = (value) => {
+	if (!DATE_RE.test(value)) return false;
+	const year = Number(value.slice(0, 4));
+	const month = Number(value.slice(5, 7));
+	const day = Number(value.slice(8, 10));
+	const date = new Date(Date.UTC(year, month - 1, day));
+	return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
+const todayYMD = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 const SCOPE_RE = /^entries\/(org|squads|stacks|projects)\/(?:([^/]+)\/)?([^/]+)\.md$/;
 const scopeFromPath = (file) => {
 	const m = SCOPE_RE.exec(file);
@@ -11747,7 +11778,7 @@ const parseEntry = (raw, file) => {
 	const scope = scopeFromPath(file);
 	if (!scope) return fail$2(file, `unknown scope directory: ${file}`);
 	if (typeof fm.description !== "string" || !fm.description) return fail$2(file, `required field "description" is missing or not a string in ${file}`);
-	if (typeof fm.type !== "string" || !VALID_TYPES.has(fm.type)) return fail$2(file, `required field "type" must be "standard" or "lesson" in ${file}`);
+	if (typeof fm.type !== "string" || !isEntryType(fm.type)) return fail$2(file, `required field "type" must be "standard" or "lesson" in ${file}`);
 	if (typeof fm.author !== "string" || !fm.author) return fail$2(file, `required field "author" is missing or not a string in ${file}`);
 	if (typeof fm.date !== "string" || !DATE_RE.test(fm.date)) return fail$2(file, `required field "date" must be YYYY-MM-DD in ${file}`);
 	if (fm.overrides !== void 0 && typeof fm.overrides !== "string") return fail$2(file, `optional field "overrides" must be a string in ${file}`);
@@ -11778,7 +11809,7 @@ const serializeEntry = (entry) => {
 //#endregion
 //#region src/core/exec.ts
 const DEFAULT_TIMEOUT_MS = 3e4;
-const exec = (cmd, args, options) => new Promise((resolve) => {
+const exec$1 = (cmd, args, options) => new Promise((resolve) => {
 	const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const child = execFile(cmd, args, { cwd: options?.cwd }, (error, stdout, stderr) => {
 		if (!error) return resolve({
@@ -11819,12 +11850,12 @@ const exec = (cmd, args, options) => new Promise((resolve) => {
 });
 const repoDirFor = (url, home) => {
 	const hash = createHash("sha256").update(url).digest("hex").slice(0, 12);
-	return path.join(home, "repos", hash);
+	return path$1.join(home, "repos", hash);
 };
 const ensureRepo = async (url, home) => {
 	const dir = repoDirFor(url, home);
-	if (!await readFile(path.join(dir, ".git", "HEAD")).then(() => true).catch(() => false)) {
-		const cloneResult = await exec("git", [
+	if (!await readFile(path$1.join(dir, ".git", "HEAD")).then(() => true).catch(() => false)) {
+		const cloneResult = await exec$1("git", [
 			"clone",
 			url,
 			dir
@@ -11839,7 +11870,7 @@ const ensureRepo = async (url, home) => {
 			stale: false
 		};
 	}
-	return (await exec("git", ["pull", "--ff-only"], {
+	return (await exec$1("git", ["pull", "--ff-only"], {
 		cwd: dir,
 		timeoutMs: 2e4
 	})).ok ? {
@@ -11870,7 +11901,7 @@ const parseDeclaredBudgets = (raw) => {
 	return declared;
 };
 const loadMemory = async (dir) => {
-	const manifestText = await readFile(path.join(dir, "memory.json"), "utf8").catch((e) => {
+	const manifestText = await readFile(path$1.join(dir, "memory.json"), "utf8").catch((e) => {
 		return { error: e instanceof Error ? e.message : String(e) };
 	});
 	if (typeof manifestText !== "string") return {
@@ -11906,7 +11937,7 @@ const loadMemory = async (dir) => {
 	const entries = [];
 	const errors = [];
 	for (const relPath of relPaths) {
-		const content = await readFile(path.join(dir, relPath), "utf8").catch((e) => {
+		const content = await readFile(path$1.join(dir, relPath), "utf8").catch((e) => {
 			errors.push({
 				file: relPath,
 				error: e instanceof Error ? e.message : String(e)
@@ -11930,7 +11961,7 @@ const loadMemory = async (dir) => {
 		errors
 	};
 };
-const memoryHome = () => process.env.ROBOTO_MEM_HOME ?? path.join(os.homedir(), ".roboto-mem");
+const memoryHome = () => process.env.ROBOTO_MEM_HOME ?? path$1.join(os.homedir(), ".roboto-mem");
 //#endregion
 //#region src/core/skill.ts
 const PROVENANCE_FILE = ".provenance.json";
@@ -12030,7 +12061,7 @@ const loadSkills = async (repoDir) => {
 		if (!dirName) continue;
 		dirNames.push(dirName);
 		const dir = `skills/${dirName}`;
-		const raw = await readFile(path.join(repoDir, dir, "SKILL.md"), "utf8").catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+		const raw = await readFile(path$1.join(repoDir, dir, "SKILL.md"), "utf8").catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
 		if (typeof raw !== "string") {
 			errors.push({
 				dir: dirName,
@@ -12053,7 +12084,7 @@ const loadSkills = async (repoDir) => {
 			});
 			continue;
 		}
-		const provText = await readFile(path.join(repoDir, dir, PROVENANCE_FILE), "utf8").catch(() => void 0);
+		const provText = await readFile(path$1.join(repoDir, dir, PROVENANCE_FILE), "utf8").catch(() => void 0);
 		if (provText === void 0) {
 			skills.push({
 				name: fm.name,
@@ -12092,12 +12123,12 @@ const findSymlink = async (dir) => {
 	const hit = (await readdir(dir, {
 		recursive: true,
 		withFileTypes: true
-	})).find((e) => e.isSymbolicLink() && !`${e.parentPath ?? ""}`.includes(`${path.sep}.git`));
-	return hit ? path.relative(dir, path.join(hit.parentPath, hit.name)) : void 0;
+	})).find((e) => e.isSymbolicLink() && !`${e.parentPath ?? ""}`.includes(`${path$1.sep}.git`));
+	return hit ? path$1.relative(dir, path$1.join(hit.parentPath, hit.name)) : void 0;
 };
 //#endregion
 //#region src/core/skill-manifest.ts
-const manifestPath = (home) => path.join(home, "skills-manifest.json");
+const manifestPath = (home) => path$1.join(home, "skills-manifest.json");
 const isValidShape = (v) => typeof v === "object" && v !== null && v.formatVersion === 1 && (v.materializedAt === void 0 || typeof v.materializedAt === "string") && typeof v.skills === "object" && v.skills !== null && !Array.isArray(v.skills) && Object.values(v.skills).every((s) => typeof s === "object" && s !== null && typeof s.hash === "string");
 const readSkillManifest = async (home) => {
 	try {
@@ -12123,24 +12154,24 @@ const hashSkillDir = async (dir) => {
 		cwd: dir,
 		dot: true,
 		followSymbolicLinks: false
-	})).filter((f) => path.basename(f) !== PROVENANCE_FILE);
+	})).filter((f) => path$1.basename(f) !== PROVENANCE_FILE);
 	files.sort();
 	const h = createHash("sha256");
 	for (const f of files) {
 		h.update(f);
 		h.update("\0");
-		h.update(await readFile(path.join(dir, f)));
+		h.update(await readFile(path$1.join(dir, f)));
 		h.update("\0");
 	}
 	return h.digest("hex");
 };
 //#endregion
 //#region src/core/materialize.ts
-const defaultSkillsTarget = () => path.join(os.homedir(), ".claude", "skills");
+const defaultSkillsTarget = () => path$1.join(os.homedir(), ".claude", "skills");
 const exists = (p) => access(p).then(() => true, () => false);
 const copySkill = async (src, dest) => {
 	const tmp = `${dest}.tmp-${process.pid}`;
-	await mkdir(path.dirname(dest), { recursive: true });
+	await mkdir(path$1.dirname(dest), { recursive: true });
 	try {
 		await rm(tmp, {
 			recursive: true,
@@ -12148,7 +12179,7 @@ const copySkill = async (src, dest) => {
 		});
 		await cp(src, tmp, {
 			recursive: true,
-			filter: (s) => path.basename(s) !== PROVENANCE_FILE
+			filter: (s) => path$1.basename(s) !== PROVENANCE_FILE
 		});
 		await rm(dest, {
 			recursive: true,
@@ -12166,7 +12197,7 @@ const errText = (e) => e instanceof Error ? e.message : String(e);
 /** true when memory.json explicitly declares a formatVersion newer than this tool understands */
 const declaresNewerFormat = async (commonsDir) => {
 	try {
-		const raw = JSON.parse(await readFile(path.join(commonsDir, "memory.json"), "utf8"));
+		const raw = JSON.parse(await readFile(path$1.join(commonsDir, "memory.json"), "utf8"));
 		const version = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw.formatVersion : void 0;
 		return typeof version === "number" && version > 1;
 	} catch {
@@ -12198,8 +12229,8 @@ const materializeSkills = async (options) => {
 			error
 		});
 		for (const skill of load.skills) try {
-			const source = path.join(options.commonsDir, skill.dir);
-			const target = path.join(targetDir, skill.name);
+			const source = path$1.join(options.commonsDir, skill.dir);
+			const target = path$1.join(targetDir, skill.name);
 			const managed = manifest.skills[skill.name];
 			const sourceHash = await hashSkillDir(source);
 			if (!managed) {
@@ -12243,7 +12274,7 @@ const materializeSkills = async (options) => {
 		for (const name of Object.keys(manifest.skills)) {
 			if (present.has(name)) continue;
 			try {
-				await rm(path.join(targetDir, name), {
+				await rm(path$1.join(targetDir, name), {
 					recursive: true,
 					force: true
 				});
@@ -12280,7 +12311,7 @@ const formatReport = (report) => {
 };
 //#endregion
 //#region src/core/version.ts
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 //#endregion
 //#region src/commands/sync.ts
 const syncRepos = async (config, home) => {
@@ -12669,18 +12700,23 @@ jobs:
 `;
 //#endregion
 //#region src/commands/init.ts
-const writeFile$1 = async (filePath, content) => {
-	await fs.mkdir(path.dirname(filePath), { recursive: true });
+/** Never clobbers a pre-existing file — scaffolding into an already-bound
+* project repo (or any dir with its own README/CODEOWNERS/etc.) must not
+* overwrite content that isn't ours. */
+const writeIfMissing = async (filePath, content) => {
+	if (await fs.access(filePath).then(() => true, () => false)) return false;
+	await fs.mkdir(path$1.dirname(filePath), { recursive: true });
 	await fs.writeFile(filePath, content, "utf8");
+	return true;
 };
 const ownBundlePath = () => {
 	const self = fileURLToPath(import.meta.url);
-	return self.endsWith("cli.mjs") ? self : path.join(path.dirname(self), "..", "..", "dist", "cli.mjs");
+	return self.endsWith("cli.mjs") ? self : path$1.join(path$1.dirname(self), "..", "..", "dist", "cli.mjs");
 };
 const vendorCli = async (dir) => {
-	const target = path.join(dir, ".roboto-mem", "cli.mjs");
+	const target = path$1.join(dir, ".roboto-mem", "cli.mjs");
 	try {
-		await fs.mkdir(path.dirname(target), { recursive: true });
+		await fs.mkdir(path$1.dirname(target), { recursive: true });
 		await fs.copyFile(ownBundlePath(), target);
 		return;
 	} catch (error) {
@@ -12688,7 +12724,7 @@ const vendorCli = async (dir) => {
 	}
 };
 const scaffoldMode = async (dir) => {
-	const memJsonPath = path.join(dir, "memory.json");
+	const memJsonPath = path$1.join(dir, "memory.json");
 	try {
 		await fs.access(memJsonPath);
 		return {
@@ -12696,34 +12732,65 @@ const scaffoldMode = async (dir) => {
 			output: "memory.json already exists — this directory is already a Commons repo. Nothing written."
 		};
 	} catch {}
-	await Promise.all([
-		writeFile$1(memJsonPath, MEMORY_JSON),
-		writeFile$1(path.join(dir, "CODEOWNERS"), CODEOWNERS),
-		writeFile$1(path.join(dir, "README.md"), COMMONS_README),
-		writeFile$1(path.join(dir, ".github", "workflows", "memory-ci.yml"), MEMORY_CI_YML),
-		writeFile$1(path.join(dir, "entries", "org", ".gitkeep"), ""),
-		writeFile$1(path.join(dir, "entries", "squads", ".gitkeep"), ""),
-		writeFile$1(path.join(dir, "entries", "stacks", ".gitkeep"), ""),
-		writeFile$1(path.join(dir, "entries", "projects", ".gitkeep"), ""),
-		writeFile$1(path.join(dir, "skills", ".gitkeep"), "")
-	]);
+	const targets = [
+		{
+			label: "memory.json",
+			path: memJsonPath,
+			content: MEMORY_JSON
+		},
+		{
+			label: "CODEOWNERS",
+			path: path$1.join(dir, "CODEOWNERS"),
+			content: CODEOWNERS
+		},
+		{
+			label: "README.md",
+			path: path$1.join(dir, "README.md"),
+			content: COMMONS_README
+		},
+		{
+			label: ".github/workflows/memory-ci.yml",
+			path: path$1.join(dir, ".github", "workflows", "memory-ci.yml"),
+			content: MEMORY_CI_YML
+		},
+		{
+			label: "entries/org/.gitkeep",
+			path: path$1.join(dir, "entries", "org", ".gitkeep"),
+			content: ""
+		},
+		{
+			label: "entries/squads/.gitkeep",
+			path: path$1.join(dir, "entries", "squads", ".gitkeep"),
+			content: ""
+		},
+		{
+			label: "entries/stacks/.gitkeep",
+			path: path$1.join(dir, "entries", "stacks", ".gitkeep"),
+			content: ""
+		},
+		{
+			label: "entries/projects/.gitkeep",
+			path: path$1.join(dir, "entries", "projects", ".gitkeep"),
+			content: ""
+		},
+		{
+			label: "skills/.gitkeep",
+			path: path$1.join(dir, "skills", ".gitkeep"),
+			content: ""
+		}
+	];
+	const written = await Promise.all(targets.map(async (t) => ({
+		label: t.label,
+		wrote: await writeIfMissing(t.path, t.content)
+	})));
 	const vendorWarning = await vendorCli(dir);
+	const lines = written.map(({ label, wrote }) => wrote ? `  ${label}` : `  ${label} (exists, skipped)`);
+	if (!vendorWarning) lines.push("  .roboto-mem/cli.mjs (vendored CLI for CI)");
 	return {
 		exitCode: 0,
 		output: [
-			"Commons repo scaffolded. Created:",
-			...[
-				"memory.json",
-				"CODEOWNERS",
-				"README.md",
-				".github/workflows/memory-ci.yml",
-				...vendorWarning ? [] : [".roboto-mem/cli.mjs (vendored CLI for CI)"],
-				"entries/org/.gitkeep",
-				"entries/squads/.gitkeep",
-				"entries/stacks/.gitkeep",
-				"entries/projects/.gitkeep",
-				"skills/.gitkeep"
-			].map((f) => `  ${f}`),
+			"Commons repo scaffolded:",
+			...lines,
 			...vendorWarning ? [vendorWarning] : [],
 			"",
 			"Next steps:",
@@ -12943,7 +13010,7 @@ const skillSecretFindings = async (repoDir, dirNames) => {
 	const errors = [];
 	const warnings = [];
 	for (const dirName of dirNames) {
-		const abs = path.join(repoDir, "skills", dirName);
+		const abs = path$1.join(repoDir, "skills", dirName);
 		const symlink = await findSymlink(abs);
 		if (symlink) errors.push(`skills/${dirName}/${symlink}: symbolic links are not allowed in skills`);
 		const files = (await glob(["**/*"], {
@@ -12953,7 +13020,7 @@ const skillSecretFindings = async (repoDir, dirNames) => {
 		})).filter((f) => f !== PROVENANCE_FILE);
 		files.sort();
 		for (const f of files) {
-			const text = await readFile(path.join(abs, f), "utf8").catch(() => "");
+			const text = await readFile(path$1.join(abs, f), "utf8").catch(() => "");
 			for (const finding of scanEntry(text)) {
 				const line = `skills/${dirName}/${f}: [${finding.rule}] ${finding.match}`;
 				if (finding.severity === "error") errors.push(line);
@@ -13034,10 +13101,14 @@ const findSimilar = (draft, candidates) => candidates.map((candidate) => ({
 })).filter(({ score }) => score >= SIMILARITY_THRESHOLD).sort((a, b) => b.score - a.score);
 //#endregion
 //#region src/commands/promote.ts
-const fail$1 = (output) => ({
+const fail$1 = (output, reason) => reason ? {
+	exitCode: 1,
+	output,
+	reason
+} : {
 	exitCode: 1,
 	output
-});
+};
 const ok$1 = (output) => ({
 	exitCode: 0,
 	output
@@ -13048,13 +13119,13 @@ const compareUrl = (commonsUrl, branch) => {
 	return m ? `https://github.com/${m[1]}/compare/main...${branch}` : void 0;
 };
 const branchName = (scope, name) => `promote/${scope.replace(/\//g, "-")}-${name}`;
-const defaultGhRunner$1 = (args, cwd) => exec("gh", args, { cwd });
+const defaultGhRunner$1 = (args, cwd) => exec$1("gh", args, { cwd });
 const runPromote = async (options) => {
-	const { cwd, scope, type, name, description, body, author, date, overrides, force = false, home = memoryHome(), ghRunner = defaultGhRunner$1 } = options;
-	if (!isValidScope(scope)) return fail$1(`Invalid scope "${scope}". Must be org, squad/<s>, stack/<k>, or project/<p>.`);
-	if (!SCOPE_ID_RE.test(name)) return fail$1(`Invalid name "${name}". Must match /^[a-z0-9][a-z0-9-]*$/.`);
-	if (type !== "standard" && type !== "lesson") return fail$1(`Invalid type "${type}". Must be "standard" or "lesson".`);
-	if (!DATE_RE.test(date)) return fail$1(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+	const { cwd, scope, type, name, description, body, author, date, overrides, force = false, overwrite = false, home = memoryHome(), ghRunner = defaultGhRunner$1 } = options;
+	if (!isValidScope(scope)) return fail$1(`Invalid scope "${scope}". Must be ${SCOPE_RULE}.`);
+	if (!SCOPE_ID_RE.test(name)) return fail$1(`Invalid name "${name}". Must match ${SCOPE_ID_RULE}.`);
+	if (!isEntryType(type)) return fail$1(`Invalid type "${type}". Must be "standard" or "lesson".`);
+	if (!isValidDate(date)) return fail$1(`Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`);
 	if (!description.trim()) return fail$1("description must not be empty.");
 	if (!body.trim()) return fail$1("body must not be empty.");
 	if (!author.trim()) return fail$1("author must not be empty.");
@@ -13070,7 +13141,7 @@ const runPromote = async (options) => {
 		return fail$1(`Failed to load memory: ${mem.detail}`);
 	}
 	const relPath = entryPathForScope(scope, name);
-	if (mem.entries.find((e) => e.file === relPath)) return fail$1(`Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`);
+	if (mem.entries.find((e) => e.file === relPath) && !overwrite) return fail$1(`Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`, "collision");
 	if (!force) {
 		const similar = findSimilar({
 			name,
@@ -13095,25 +13166,25 @@ const runPromote = async (options) => {
 		...overrides !== void 0 ? { overrides } : {}
 	};
 	const branch = branchName(scope, name);
-	const absEntryPath = path.join(cloneDir, relPath);
+	const absEntryPath = path$1.join(cloneDir, relPath);
 	const gitCleanup = async () => {
-		await exec("git", ["checkout", "main"], { cwd: cloneDir });
+		await exec$1("git", ["checkout", "main"], { cwd: cloneDir });
 	};
-	const checkoutResult = await exec("git", [
+	const checkoutResult = await exec$1("git", [
 		"checkout",
 		"-B",
 		branch,
 		"main"
 	], { cwd: cloneDir });
 	if (!checkoutResult.ok) return fail$1(`git checkout failed: ${checkoutResult.stderr}`);
-	await fs.mkdir(path.dirname(absEntryPath), { recursive: true });
+	await fs.mkdir(path$1.dirname(absEntryPath), { recursive: true });
 	await fs.writeFile(absEntryPath, serializeEntry(entry), "utf8");
-	const addResult = await exec("git", ["add", relPath], { cwd: cloneDir });
+	const addResult = await exec$1("git", ["add", relPath], { cwd: cloneDir });
 	if (!addResult.ok) {
 		await gitCleanup();
 		return fail$1(`git add failed: ${addResult.stderr}`);
 	}
-	const commitResult = await exec("git", [
+	const commitResult = await exec$1("git", [
 		"commit",
 		"-m",
 		`promote(${scope}): ${name}`
@@ -13122,7 +13193,7 @@ const runPromote = async (options) => {
 		await gitCleanup();
 		return fail$1(`git commit failed: ${commitResult.stderr}`);
 	}
-	const pushResult = await exec("git", [
+	const pushResult = await exec$1("git", [
 		"push",
 		"-u",
 		"origin",
@@ -13147,7 +13218,7 @@ const runPromote = async (options) => {
 		"Warnings (non-blocking):",
 		...warnings.map((f) => `  [${f.rule}] ${f.match}`)
 	] : [];
-	await exec("git", ["checkout", "main"], { cwd: cloneDir });
+	await exec$1("git", ["checkout", "main"], { cwd: cloneDir });
 	if (prResult.ok) return ok$1([
 		`Entry written: ${relPath}`,
 		`Branch: ${branch}`,
@@ -13172,7 +13243,7 @@ const ok = (output) => ({
 	exitCode: 0,
 	output
 });
-const defaultGhRunner = (args, cwd) => exec("gh", args, { cwd });
+const defaultGhRunner = (args, cwd) => exec$1("gh", args, { cwd });
 const OWNER_REPO_RE = /^[\w.-]+\/[\w.-]+$/;
 const normalizeSource = (source) => {
 	if (/^https:\/\/\S+$/.test(source)) return {
@@ -13189,12 +13260,12 @@ const normalizeSource = (source) => {
 	};
 };
 const fetchUpstream = async (url, ref) => {
-	const dir = await mkdtemp(path.join(os.tmpdir(), "rm-vendor-"));
+	const dir = await mkdtemp(path$1.join(os.tmpdir(), "rm-vendor-"));
 	const cleanup = () => rm(dir, {
 		recursive: true,
 		force: true
 	});
-	const clone = await exec("git", ref ? [
+	const clone = await exec$1("git", ref ? [
 		"clone",
 		url,
 		dir
@@ -13210,13 +13281,13 @@ const fetchUpstream = async (url, ref) => {
 		return { error: `git clone failed: ${clone.stderr}` };
 	}
 	if (ref) {
-		const checkout = await exec("git", ["checkout", ref], { cwd: dir });
+		const checkout = await exec$1("git", ["checkout", ref], { cwd: dir });
 		if (!checkout.ok) {
 			await cleanup();
 			return { error: `git checkout ${ref} failed: ${checkout.stderr}` };
 		}
 	}
-	const revParse = await exec("git", ["rev-parse", "HEAD"], { cwd: dir });
+	const revParse = await exec$1("git", ["rev-parse", "HEAD"], { cwd: dir });
 	if (!revParse.ok) {
 		await cleanup();
 		return { error: `git rev-parse failed: ${revParse.stderr}` };
@@ -13228,14 +13299,14 @@ const fetchUpstream = async (url, ref) => {
 	};
 };
 const locateSkillDir = async (cloneDir, skillArg) => {
-	const hasSkillMd = async (rel) => readFile(path.join(cloneDir, rel, "SKILL.md"), "utf8").then(() => true, () => false);
+	const hasSkillMd = async (rel) => readFile(path$1.join(cloneDir, rel, "SKILL.md"), "utf8").then(() => true, () => false);
 	if (skillArg) {
-		if (path.isAbsolute(skillArg) || skillArg.includes("\\") || skillArg.split("/").includes("..")) return {
+		if (path$1.isAbsolute(skillArg) || skillArg.includes("\\") || skillArg.split("/").includes("..")) return {
 			ok: false,
 			error: `Invalid --skill "${skillArg}" — must be a skill name or repo-relative path without ".."`
 		};
-		const root = path.resolve(cloneDir) + path.sep;
-		const contained = (rel) => path.resolve(cloneDir, rel).startsWith(root);
+		const root = path$1.resolve(cloneDir) + path$1.sep;
+		const contained = (rel) => path$1.resolve(cloneDir, rel).startsWith(root);
 		const candidates = [`skills/${skillArg}`, skillArg].filter(contained);
 		for (const rel of candidates) if (await hasSkillMd(rel)) return {
 			ok: true,
@@ -13259,9 +13330,9 @@ const locateSkillDir = async (cloneDir, skillArg) => {
 	};
 	if (found.length > 1) return {
 		ok: false,
-		error: ["multiple skills found — pass --skill <name>:", ...found.map((f) => path.dirname(f)).slice(0, 10).map((n) => `  ${n}`)].join("\n")
+		error: ["multiple skills found — pass --skill <name>:", ...found.map((f) => path$1.dirname(f)).slice(0, 10).map((n) => `  ${n}`)].join("\n")
 	};
-	const relDir = path.dirname(found[0] ?? "");
+	const relDir = path$1.dirname(found[0] ?? "");
 	return relDir === "." ? {
 		ok: true,
 		relDir: ".",
@@ -13283,7 +13354,7 @@ const scanSkillFiles = async (absDir) => {
 	const errors = [];
 	const warnings = [];
 	for (const f of files) {
-		const text = await readFile(path.join(absDir, f), "utf8").catch(() => "");
+		const text = await readFile(path$1.join(absDir, f), "utf8").catch(() => "");
 		for (const finding of scanEntry(text)) {
 			const line = `  ${f}: [${finding.rule}] ${finding.match}`;
 			if (finding.severity === "error") errors.push(line);
@@ -13300,15 +13371,15 @@ const submitSkillPr = async (args) => {
 	if (!repoSync.ok) return fail(`Failed to sync commons repo: ${repoSync.error}`);
 	const cloneDir = repoSync.dir;
 	const relDir = `skills/${args.name}`;
-	const absTarget = path.join(cloneDir, relDir);
+	const absTarget = path$1.join(cloneDir, relDir);
 	const symlink = await findSymlink(args.sourceDir);
 	if (symlink) return fail(`Refusing to vendor: symbolic link found at ${symlink} — symbolic links are not allowed in vendored skills.`);
 	const scan = await scanSkillFiles(args.sourceDir);
 	if (scan.errors.length > 0) return fail(["Secret scan failed:", ...scan.errors].join("\n"));
-	const existing = await readFile(path.join(absTarget, "SKILL.md"), "utf8").then(() => true, () => false);
+	const existing = await readFile(path$1.join(absTarget, "SKILL.md"), "utf8").then(() => true, () => false);
 	const branch = `skill/${args.name}`;
-	const gitCleanup = () => exec("git", ["checkout", "main"], { cwd: cloneDir });
-	const checkout = await exec("git", [
+	const gitCleanup = () => exec$1("git", ["checkout", "main"], { cwd: cloneDir });
+	const checkout = await exec$1("git", [
 		"checkout",
 		"-B",
 		branch,
@@ -13320,18 +13391,18 @@ const submitSkillPr = async (args) => {
 		force: true
 	});
 	await mkdir(absTarget, { recursive: true });
-	if (args.skillMdOnly) await cp(path.join(args.sourceDir, "SKILL.md"), path.join(absTarget, "SKILL.md"));
+	if (args.skillMdOnly) await cp(path$1.join(args.sourceDir, "SKILL.md"), path$1.join(absTarget, "SKILL.md"));
 	else await cp(args.sourceDir, absTarget, {
 		recursive: true,
-		filter: (s) => path.basename(s) !== ".git"
+		filter: (s) => path$1.basename(s) !== ".git"
 	});
-	if (args.provenance) await writeFile(path.join(absTarget, PROVENANCE_FILE), `${JSON.stringify(args.provenance, null, 2)}\n`, "utf8");
-	const add = await exec("git", ["add", relDir], { cwd: cloneDir });
+	if (args.provenance) await writeFile(path$1.join(absTarget, PROVENANCE_FILE), `${JSON.stringify(args.provenance, null, 2)}\n`, "utf8");
+	const add = await exec$1("git", ["add", relDir], { cwd: cloneDir });
 	if (!add.ok) {
 		await gitCleanup();
 		return fail(`git add failed: ${add.stderr}`);
 	}
-	if ((await exec("git", [
+	if ((await exec$1("git", [
 		"diff",
 		"--cached",
 		"--quiet"
@@ -13340,7 +13411,7 @@ const submitSkillPr = async (args) => {
 		return ok(`${relDir} is already up to date — nothing to submit.`);
 	}
 	const commitMsg = `skill(${args.name}): ${args.commitLabel}`;
-	const commit = await exec("git", [
+	const commit = await exec$1("git", [
 		"commit",
 		"-m",
 		commitMsg
@@ -13349,7 +13420,7 @@ const submitSkillPr = async (args) => {
 		await gitCleanup();
 		return fail(`git commit failed: ${commit.stderr}`);
 	}
-	const push = await exec("git", [
+	const push = await exec$1("git", [
 		"push",
 		"-u",
 		"origin",
@@ -13396,7 +13467,7 @@ const submitSkillPr = async (args) => {
 const runSkillAdd = async (options) => {
 	const { cwd, source, skill, ref, author, date, home = memoryHome(), ghRunner = defaultGhRunner } = options;
 	if (!author.trim()) return fail("author must not be empty.");
-	if (!DATE_RE.test(date)) return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+	if (!isValidDate(date)) return fail(`Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`);
 	const normalized = normalizeSource(source);
 	if (!normalized) return fail(`Unusable source "${source}" — expected owner/repo or an https git URL.`);
 	const configResult = await loadConfig(cwd);
@@ -13406,8 +13477,8 @@ const runSkillAdd = async (options) => {
 	try {
 		const located = await locateSkillDir(upstream.dir, skill);
 		if (!located.ok) return fail(located.error);
-		const sourceDir = path.join(upstream.dir, located.relDir);
-		const fm = parseSkillFrontmatter(await readFile(path.join(sourceDir, "SKILL.md"), "utf8"));
+		const sourceDir = path$1.join(upstream.dir, located.relDir);
+		const fm = parseSkillFrontmatter(await readFile(path$1.join(sourceDir, "SKILL.md"), "utf8"));
 		if (!fm.ok) return fail(`upstream SKILL.md: ${fm.error}`);
 		const provenance = {
 			source: normalized.label,
@@ -13433,11 +13504,11 @@ const runSkillAdd = async (options) => {
 const runSkillPromote = async (options) => {
 	const { cwd, name, author, date, home = memoryHome(), skillsRoot = defaultSkillsTarget(), ghRunner = defaultGhRunner } = options;
 	if (!author.trim()) return fail("author must not be empty.");
-	if (!DATE_RE.test(date)) return fail(`Invalid date "${date}". Must be YYYY-MM-DD.`);
+	if (!isValidDate(date)) return fail(`Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`);
 	const configResult = await loadConfig(cwd);
 	if (!configResult.ok) return fail(configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : configResult.detail);
-	const sourceDir = path.join(skillsRoot, name);
-	const raw = await readFile(path.join(sourceDir, "SKILL.md"), "utf8").catch(() => void 0);
+	const sourceDir = path$1.join(skillsRoot, name);
+	const raw = await readFile(path$1.join(sourceDir, "SKILL.md"), "utf8").catch(() => void 0);
 	if (raw === void 0) return fail(`No personal skill at ${sourceDir} (expected SKILL.md).`);
 	const fm = parseSkillFrontmatter(raw);
 	if (!fm.ok) return fail(`SKILL.md: ${fm.error}`);
@@ -13500,7 +13571,7 @@ const runStatus = async (options) => {
 				const classified = await Promise.all(skillsLoad.skills.map(async (skill) => {
 					try {
 						const managed = manifest.skills[skill.name];
-						const targetPath = path.join(target, skill.name);
+						const targetPath = path$1.join(target, skill.name);
 						if (!managed) return {
 							name: skill.name,
 							state: await cloneExists(targetPath) ? "shadowed" : "pending"
@@ -13542,6 +13613,3065 @@ const runStatus = async (options) => {
 	};
 };
 //#endregion
+//#region node_modules/.pnpm/fast-string-truncated-width@3.0.3/node_modules/fast-string-truncated-width/dist/utils.js
+var getCodePointsLength, isFullWidth, isWideNotCJKTNotEmoji;
+var init_utils = __esmMin((() => {
+	getCodePointsLength = (() => {
+		const SURROGATE_PAIR_RE = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+		return (input) => {
+			let surrogatePairsNr = 0;
+			SURROGATE_PAIR_RE.lastIndex = 0;
+			while (SURROGATE_PAIR_RE.test(input)) surrogatePairsNr += 1;
+			return input.length - surrogatePairsNr;
+		};
+	})();
+	isFullWidth = (x) => {
+		return x === 12288 || x >= 65281 && x <= 65376 || x >= 65504 && x <= 65510;
+	};
+	isWideNotCJKTNotEmoji = (x) => {
+		return x === 8987 || x === 9001 || x >= 12272 && x <= 12287 || x >= 12289 && x <= 12350 || x >= 12441 && x <= 12543 || x >= 12549 && x <= 12591 || x >= 12593 && x <= 12686 || x >= 12688 && x <= 12771 || x >= 12783 && x <= 12830 || x >= 12832 && x <= 12871 || x >= 12880 && x <= 19903 || x >= 65040 && x <= 65049 || x >= 65072 && x <= 65106 || x >= 65108 && x <= 65126 || x >= 65128 && x <= 65131 || x >= 127488 && x <= 127490 || x >= 127504 && x <= 127547 || x >= 127552 && x <= 127560 || x >= 131072 && x <= 196605 || x >= 196608 && x <= 262141;
+	};
+}));
+//#endregion
+//#region node_modules/.pnpm/fast-string-truncated-width@3.0.3/node_modules/fast-string-truncated-width/dist/index.js
+var ANSI_RE, CONTROL_RE, CJKT_WIDE_RE, TAB_RE, EMOJI_RE, LATIN_RE, MODIFIER_RE, NO_TRUNCATION$1, getStringTruncatedWidth;
+var init_dist$3 = __esmMin((() => {
+	init_utils();
+	ANSI_RE = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]|\u001b\]8;[^;]*;.*?(?:\u0007|\u001b\u005c)/y;
+	CONTROL_RE = /[\x00-\x08\x0A-\x1F\x7F-\x9F]{1,1000}/y;
+	CJKT_WIDE_RE = /(?:(?![\uFF61-\uFF9F\uFF00-\uFFEF])[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Tangut}]){1,1000}/uy;
+	TAB_RE = /\t{1,1000}/y;
+	EMOJI_RE = /[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0061}-\u{E007A}]{2}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{1,3}\u{E007F}|(?:\p{Emoji}\uFE0F\u20E3?|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation})(?:\u200D(?:\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Emoji}\uFE0F\u20E3?))*/uy;
+	LATIN_RE = /(?:[\x20-\x7E\xA0-\xFF](?!\uFE0F)){1,1000}/y;
+	MODIFIER_RE = /\p{M}+/gu;
+	NO_TRUNCATION$1 = {
+		limit: Infinity,
+		ellipsis: ""
+	};
+	getStringTruncatedWidth = (input, truncationOptions = {}, widthOptions = {}) => {
+		const LIMIT = truncationOptions.limit ?? Infinity;
+		const ELLIPSIS = truncationOptions.ellipsis ?? "";
+		const ELLIPSIS_WIDTH = truncationOptions?.ellipsisWidth ?? (ELLIPSIS ? getStringTruncatedWidth(ELLIPSIS, NO_TRUNCATION$1, widthOptions).width : 0);
+		const ANSI_WIDTH = 0;
+		const CONTROL_WIDTH = widthOptions.controlWidth ?? 0;
+		const TAB_WIDTH = widthOptions.tabWidth ?? 8;
+		const EMOJI_WIDTH = widthOptions.emojiWidth ?? 2;
+		const FULL_WIDTH_WIDTH = 2;
+		const REGULAR_WIDTH = widthOptions.regularWidth ?? 1;
+		const WIDE_WIDTH = widthOptions.wideWidth ?? FULL_WIDTH_WIDTH;
+		const PARSE_BLOCKS = [
+			[LATIN_RE, REGULAR_WIDTH],
+			[ANSI_RE, ANSI_WIDTH],
+			[CONTROL_RE, CONTROL_WIDTH],
+			[TAB_RE, TAB_WIDTH],
+			[EMOJI_RE, EMOJI_WIDTH],
+			[CJKT_WIDE_RE, WIDE_WIDTH]
+		];
+		let indexPrev = 0;
+		let index = 0;
+		let length = input.length;
+		let lengthExtra = 0;
+		let truncationEnabled = false;
+		let truncationIndex = length;
+		let truncationLimit = Math.max(0, LIMIT - ELLIPSIS_WIDTH);
+		let unmatchedStart = 0;
+		let unmatchedEnd = 0;
+		let width = 0;
+		let widthExtra = 0;
+		outer: while (true) {
+			if (unmatchedEnd > unmatchedStart || index >= length && index > indexPrev) {
+				const unmatched = input.slice(unmatchedStart, unmatchedEnd) || input.slice(indexPrev, index);
+				lengthExtra = 0;
+				for (const char of unmatched.replaceAll(MODIFIER_RE, "")) {
+					const codePoint = char.codePointAt(0) || 0;
+					if (isFullWidth(codePoint)) widthExtra = FULL_WIDTH_WIDTH;
+					else if (isWideNotCJKTNotEmoji(codePoint)) widthExtra = WIDE_WIDTH;
+					else widthExtra = REGULAR_WIDTH;
+					if (width + widthExtra > truncationLimit) truncationIndex = Math.min(truncationIndex, Math.max(unmatchedStart, indexPrev) + lengthExtra);
+					if (width + widthExtra > LIMIT) {
+						truncationEnabled = true;
+						break outer;
+					}
+					lengthExtra += char.length;
+					width += widthExtra;
+				}
+				unmatchedStart = unmatchedEnd = 0;
+			}
+			if (index >= length) break outer;
+			for (let i = 0, l = PARSE_BLOCKS.length; i < l; i++) {
+				const [BLOCK_RE, BLOCK_WIDTH] = PARSE_BLOCKS[i];
+				BLOCK_RE.lastIndex = index;
+				if (BLOCK_RE.test(input)) {
+					lengthExtra = BLOCK_RE === CJKT_WIDE_RE ? getCodePointsLength(input.slice(index, BLOCK_RE.lastIndex)) : BLOCK_RE === EMOJI_RE ? 1 : BLOCK_RE.lastIndex - index;
+					widthExtra = lengthExtra * BLOCK_WIDTH;
+					if (width + widthExtra > truncationLimit) truncationIndex = Math.min(truncationIndex, index + Math.floor((truncationLimit - width) / BLOCK_WIDTH));
+					if (width + widthExtra > LIMIT) {
+						truncationEnabled = true;
+						break outer;
+					}
+					width += widthExtra;
+					unmatchedStart = indexPrev;
+					unmatchedEnd = index;
+					index = indexPrev = BLOCK_RE.lastIndex;
+					continue outer;
+				}
+			}
+			index += 1;
+		}
+		return {
+			width: truncationEnabled ? truncationLimit : width,
+			index: truncationEnabled ? truncationIndex : length,
+			truncated: truncationEnabled,
+			ellipsed: truncationEnabled && LIMIT >= ELLIPSIS_WIDTH
+		};
+	};
+}));
+//#endregion
+//#region node_modules/.pnpm/fast-string-width@3.0.2/node_modules/fast-string-width/dist/index.js
+var NO_TRUNCATION, fastStringWidth;
+var init_dist$2 = __esmMin((() => {
+	init_dist$3();
+	NO_TRUNCATION = {
+		limit: Infinity,
+		ellipsis: "",
+		ellipsisWidth: 0
+	};
+	fastStringWidth = (input, options = {}) => {
+		return getStringTruncatedWidth(input, NO_TRUNCATION, options).width;
+	};
+}));
+//#endregion
+//#region node_modules/.pnpm/fast-wrap-ansi@0.2.2/node_modules/fast-wrap-ansi/lib/main.js
+function wrapAnsi(string, columns, options) {
+	return String(string).normalize().split(CRLF_OR_LF).map((line) => exec(line, columns, options)).join("\n");
+}
+var ESC, CSI, END_CODE, ANSI_ESCAPE_BELL, ANSI_CSI, ANSI_OSC, ANSI_SGR_TERMINATOR, ANSI_ESCAPE_LINK, GROUP_REGEX, getClosingCode, wrapAnsiCode, wrapAnsiHyperlink, wrapWord, stringVisibleTrimSpacesRight, exec, CRLF_OR_LF;
+var init_main = __esmMin((() => {
+	init_dist$2();
+	ESC = "\x1B";
+	CSI = "";
+	END_CODE = 39;
+	ANSI_ESCAPE_BELL = "\x07";
+	ANSI_CSI = "[";
+	ANSI_OSC = "]";
+	ANSI_SGR_TERMINATOR = "m";
+	ANSI_ESCAPE_LINK = `${ANSI_OSC}8;;`;
+	GROUP_REGEX = new RegExp(`(?:\\${ANSI_CSI}(?<code>\\d+)m|\\${ANSI_ESCAPE_LINK}(?<uri>.*)${ANSI_ESCAPE_BELL})`, "y");
+	getClosingCode = (openingCode) => {
+		if (openingCode >= 30 && openingCode <= 37) return 39;
+		if (openingCode >= 90 && openingCode <= 97) return 39;
+		if (openingCode >= 40 && openingCode <= 47) return 49;
+		if (openingCode >= 100 && openingCode <= 107) return 49;
+		if (openingCode === 1 || openingCode === 2) return 22;
+		if (openingCode === 3) return 23;
+		if (openingCode === 4) return 24;
+		if (openingCode === 7) return 27;
+		if (openingCode === 8) return 28;
+		if (openingCode === 9) return 29;
+		if (openingCode === 0) return 0;
+	};
+	wrapAnsiCode = (code) => `${ESC}${ANSI_CSI}${code}${ANSI_SGR_TERMINATOR}`;
+	wrapAnsiHyperlink = (url) => `${ESC}${ANSI_ESCAPE_LINK}${url}${ANSI_ESCAPE_BELL}`;
+	wrapWord = (rows, word, columns) => {
+		const characters = word[Symbol.iterator]();
+		let isInsideEscape = false;
+		let isInsideLinkEscape = false;
+		let lastRow = rows.at(-1);
+		let visible = lastRow === void 0 ? 0 : fastStringWidth(lastRow);
+		let currentCharacter = characters.next();
+		let nextCharacter = characters.next();
+		let rawCharacterIndex = 0;
+		while (!currentCharacter.done) {
+			const character = currentCharacter.value;
+			const characterLength = fastStringWidth(character);
+			if (visible + characterLength <= columns) rows[rows.length - 1] += character;
+			else {
+				rows.push(character);
+				visible = 0;
+			}
+			if (character === ESC || character === CSI) {
+				isInsideEscape = true;
+				isInsideLinkEscape = word.startsWith(ANSI_ESCAPE_LINK, rawCharacterIndex + 1);
+			}
+			if (isInsideEscape) {
+				if (isInsideLinkEscape) {
+					if (character === ANSI_ESCAPE_BELL) {
+						isInsideEscape = false;
+						isInsideLinkEscape = false;
+					}
+				} else if (character === ANSI_SGR_TERMINATOR) isInsideEscape = false;
+			} else {
+				visible += characterLength;
+				if (visible === columns && !nextCharacter.done) {
+					rows.push("");
+					visible = 0;
+				}
+			}
+			currentCharacter = nextCharacter;
+			nextCharacter = characters.next();
+			rawCharacterIndex += character.length;
+		}
+		lastRow = rows.at(-1);
+		if (!visible && lastRow !== void 0 && lastRow.length && rows.length > 1) rows[rows.length - 2] += rows.pop();
+	};
+	stringVisibleTrimSpacesRight = (string) => {
+		const words = string.split(" ");
+		let last = words.length;
+		while (last) {
+			if (fastStringWidth(words[last - 1])) break;
+			last--;
+		}
+		if (last === words.length) return string;
+		return words.slice(0, last).join(" ") + words.slice(last).join("");
+	};
+	exec = (string, columns, options = {}) => {
+		if (options.trim !== false && string.trim() === "") return "";
+		let returnValue = "";
+		let escapeCode;
+		let escapeUrl;
+		const words = string.split(" ");
+		let rows = [""];
+		let rowLength = 0;
+		for (let index = 0; index < words.length; index++) {
+			const word = words[index];
+			if (options.trim !== false) {
+				const row = rows.at(-1) ?? "";
+				const trimmed = row.trimStart();
+				if (row.length !== trimmed.length) {
+					rows[rows.length - 1] = trimmed;
+					rowLength = fastStringWidth(trimmed);
+				}
+			}
+			if (index !== 0) {
+				if (rowLength >= columns && (options.wordWrap === false || options.trim === false)) {
+					rows.push("");
+					rowLength = 0;
+				}
+				if (rowLength || options.trim === false) {
+					rows[rows.length - 1] += " ";
+					rowLength++;
+				}
+			}
+			const wordLength = fastStringWidth(word);
+			if (options.hard && wordLength > columns) {
+				const remainingColumns = columns - rowLength;
+				const breaksStartingThisLine = 1 + Math.floor((wordLength - remainingColumns - 1) / columns);
+				if (Math.floor((wordLength - 1) / columns) < breaksStartingThisLine) rows.push("");
+				wrapWord(rows, word, columns);
+				rowLength = fastStringWidth(rows.at(-1) ?? "");
+				continue;
+			}
+			if (rowLength + wordLength > columns && rowLength && wordLength) {
+				if (options.wordWrap === false && rowLength < columns) {
+					wrapWord(rows, word, columns);
+					rowLength = fastStringWidth(rows.at(-1) ?? "");
+					continue;
+				}
+				rows.push("");
+				rowLength = 0;
+			}
+			if (rowLength + wordLength > columns && options.wordWrap === false) {
+				wrapWord(rows, word, columns);
+				rowLength = fastStringWidth(rows.at(-1) ?? "");
+				continue;
+			}
+			rows[rows.length - 1] += word;
+			rowLength += wordLength;
+		}
+		if (options.trim !== false) rows = rows.map((row) => stringVisibleTrimSpacesRight(row));
+		const preString = rows.join("\n");
+		let inSurrogate = false;
+		for (let i = 0; i < preString.length; i++) {
+			const character = preString[i];
+			returnValue += character;
+			if (!inSurrogate) {
+				inSurrogate = character >= "\ud800" && character <= "\udbff";
+				if (inSurrogate) continue;
+			} else inSurrogate = false;
+			if (character === ESC || character === CSI) {
+				GROUP_REGEX.lastIndex = i + 1;
+				const groups = GROUP_REGEX.exec(preString)?.groups;
+				if (groups?.code !== void 0) {
+					const code = Number.parseFloat(groups.code);
+					escapeCode = code === END_CODE ? void 0 : code;
+				} else if (groups?.uri !== void 0) escapeUrl = groups.uri.length === 0 ? void 0 : groups.uri;
+			}
+			if (preString[i + 1] === "\n") {
+				if (escapeUrl) returnValue += wrapAnsiHyperlink("");
+				const closingCode = escapeCode ? getClosingCode(escapeCode) : void 0;
+				if (escapeCode && closingCode) returnValue += wrapAnsiCode(closingCode);
+			} else if (character === "\n") {
+				if (escapeCode && getClosingCode(escapeCode)) returnValue += wrapAnsiCode(escapeCode);
+				if (escapeUrl) returnValue += wrapAnsiHyperlink(escapeUrl);
+			}
+		}
+		return returnValue;
+	};
+	CRLF_OR_LF = /\r?\n/;
+}));
+//#endregion
+//#region node_modules/.pnpm/sisteransi@1.0.5/node_modules/sisteransi/src/index.js
+var require_src = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	const ESC = "\x1B";
+	const CSI = `${ESC}[`;
+	const beep = "\x07";
+	const cursor = {
+		to(x, y) {
+			if (!y) return `${CSI}${x + 1}G`;
+			return `${CSI}${y + 1};${x + 1}H`;
+		},
+		move(x, y) {
+			let ret = "";
+			if (x < 0) ret += `${CSI}${-x}D`;
+			else if (x > 0) ret += `${CSI}${x}C`;
+			if (y < 0) ret += `${CSI}${-y}A`;
+			else if (y > 0) ret += `${CSI}${y}B`;
+			return ret;
+		},
+		up: (count = 1) => `${CSI}${count}A`,
+		down: (count = 1) => `${CSI}${count}B`,
+		forward: (count = 1) => `${CSI}${count}C`,
+		backward: (count = 1) => `${CSI}${count}D`,
+		nextLine: (count = 1) => `${CSI}E`.repeat(count),
+		prevLine: (count = 1) => `${CSI}F`.repeat(count),
+		left: `${CSI}G`,
+		hide: `${CSI}?25l`,
+		show: `${CSI}?25h`,
+		save: `${ESC}7`,
+		restore: `${ESC}8`
+	};
+	module.exports = {
+		cursor,
+		scroll: {
+			up: (count = 1) => `${CSI}S`.repeat(count),
+			down: (count = 1) => `${CSI}T`.repeat(count)
+		},
+		erase: {
+			screen: `${CSI}2J`,
+			up: (count = 1) => `${CSI}1J`.repeat(count),
+			down: (count = 1) => `${CSI}J`.repeat(count),
+			line: `${CSI}2K`,
+			lineEnd: `${CSI}K`,
+			lineStart: `${CSI}1K`,
+			lines(count) {
+				let clear = "";
+				for (let i = 0; i < count; i++) clear += this.line + (i < count - 1 ? cursor.up() : "");
+				if (count) clear += cursor.left;
+				return clear;
+			}
+		},
+		beep
+	};
+}));
+//#endregion
+//#region node_modules/.pnpm/@clack+core@1.4.3/node_modules/@clack/core/dist/index.mjs
+function findCursor(s, o, l) {
+	if (!l.some((r) => !r.disabled)) return s;
+	const t = s + o, n = Math.max(l.length - 1, 0), e = t < 0 ? n : t > n ? 0 : t;
+	return l[e]?.disabled ? findCursor(e, o < 0 ? -1 : 1, l) : e;
+}
+function findTextCursor(s, o, l, i) {
+	const t = i.split(`
+`);
+	let n = 0, e = s;
+	for (const r of t) {
+		if (e <= r.length) break;
+		e -= r.length + 1, n++;
+	}
+	for (n = Math.max(0, Math.min(t.length - 1, n + l)), e = Math.min(e, t[n].length) + o; e < 0 && n > 0;) n--, e += t[n].length + 1;
+	for (; e > t[n].length && n < t.length - 1;) e -= t[n].length + 1, n++;
+	e = Math.max(0, Math.min(t[n].length, e));
+	let h = 0;
+	for (let r = 0; r < n; r++) h += t[r].length + 1;
+	return h + e;
+}
+function updateSettings(n) {
+	if (n.aliases !== void 0) {
+		const e = n.aliases;
+		for (const s in e) {
+			if (!Object.hasOwn(e, s)) continue;
+			const i = e[s];
+			i === void 0 || !settings.actions.has(i) || settings.aliases.has(s) || settings.aliases.set(s, i);
+		}
+	}
+	if (n.messages !== void 0) {
+		const e = n.messages;
+		e.cancel !== void 0 && (settings.messages.cancel = e.cancel), e.error !== void 0 && (settings.messages.error = e.error);
+	}
+	if (n.withGuide !== void 0 && (settings.withGuide = n.withGuide !== false), n.date !== void 0) {
+		const e = n.date;
+		e.monthNames !== void 0 && (settings.date.monthNames = [...e.monthNames]), e.messages !== void 0 && (e.messages.required !== void 0 && (settings.date.messages.required = e.messages.required), e.messages.invalidMonth !== void 0 && (settings.date.messages.invalidMonth = e.messages.invalidMonth), e.messages.invalidDay !== void 0 && (settings.date.messages.invalidDay = e.messages.invalidDay), e.messages.afterMin !== void 0 && (settings.date.messages.afterMin = e.messages.afterMin), e.messages.beforeMax !== void 0 && (settings.date.messages.beforeMax = e.messages.beforeMax));
+	}
+}
+function isActionKey(n, e) {
+	if (typeof n == "string") return settings.aliases.get(n) === e;
+	for (const s of n) if (s !== void 0 && isActionKey(s, e)) return true;
+	return false;
+}
+function diffLines(i, s) {
+	if (i === s) return;
+	const e = i.split(`
+`), t = s.split(`
+`), r = Math.max(e.length, t.length), f = [];
+	for (let n = 0; n < r; n++) e[n] !== t[n] && f.push(n);
+	return {
+		lines: f,
+		numLinesBefore: e.length,
+		numLinesAfter: t.length,
+		numLines: r
+	};
+}
+function isCancel(e) {
+	return e === CANCEL_SYMBOL;
+}
+function setRawMode(e, r) {
+	const o = e;
+	o.isTTY && o.setRawMode(r);
+}
+function block({ input: e = stdin, output: r = stdout, overwrite: o = true, hideCursor: t = true } = {}) {
+	const s = l.createInterface({
+		input: e,
+		output: r,
+		prompt: "",
+		tabSize: 1
+	});
+	l.emitKeypressEvents(e, s), e instanceof ReadStream && e.isTTY && e.setRawMode(true);
+	const n = (f, { name: a, sequence: p }) => {
+		if (isActionKey([
+			String(f),
+			a,
+			p
+		], "cancel")) {
+			t && r.write(import_src$1.cursor.show), process.exit(0);
+			return;
+		}
+		if (!o) return;
+		const i = a === "return" ? 0 : -1, m = a === "return" ? -1 : 0;
+		l.moveCursor(r, i, m, () => {
+			l.clearLine(r, 1, () => {
+				e.once("keypress", n);
+			});
+		});
+	};
+	return t && r.write(import_src$1.cursor.hide), e.once("keypress", n), () => {
+		e.off("keypress", n), t && r.write(import_src$1.cursor.show), e instanceof ReadStream && e.isTTY && !R && e.setRawMode(false), s.terminal = false, s.close();
+	};
+}
+function wrapTextWithPrefix(e, r, o, t = o, s = o, n) {
+	return wrapAnsi(r, getColumns(e ?? stdout) - o.length, {
+		hard: true,
+		trim: false
+	}).split(`
+`).map((c, i, m) => {
+		const d = n ? n(c, i) : c;
+		return i === 0 ? `${t}${d}` : i === m.length - 1 ? `${s}${d}` : `${o}${d}`;
+	}).join(`
+`);
+}
+function runValidation(e, n) {
+	if ("~standard" in e) {
+		const a = e["~standard"].validate(n);
+		if (a instanceof Promise) throw new TypeError("Schema validation must be synchronous. Update `validate()` and remove any asynchronous logic.");
+		return a.issues?.at(0)?.message;
+	}
+	return e(n);
+}
+function p$1(l, e) {
+	if (l === void 0 || e.length === 0) return 0;
+	const i = e.findIndex((s) => s.value === l);
+	return i !== -1 ? i : 0;
+}
+function g(l, e) {
+	return (e.label ?? String(e.value)).toLowerCase().includes(l.toLowerCase());
+}
+function m$1(l, e) {
+	if (e) return l ? e : e[0];
+}
+function M(r) {
+	return [...r].map((t) => _[t]);
+}
+function P$1(r) {
+	const i = new Intl.DateTimeFormat(r, {
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit"
+	}).formatToParts(new Date(2e3, 0, 15)), s = [];
+	let n = "/";
+	for (const e of i) e.type === "literal" ? n = e.value.trim() || e.value : (e.type === "year" || e.type === "month" || e.type === "day") && s.push({
+		type: e.type,
+		len: e.type === "year" ? 4 : 2
+	});
+	return {
+		segments: s,
+		separator: n
+	};
+}
+function p$2(r) {
+	return Number.parseInt((r || "0").replace(/_/g, "0"), 10) || 0;
+}
+function f(r) {
+	return {
+		year: p$2(r.year),
+		month: p$2(r.month),
+		day: p$2(r.day)
+	};
+}
+function c$1(r, t) {
+	return new Date(r || 2001, t || 1, 0).getDate();
+}
+function b$1(r) {
+	const { year: t, month: i, day: s } = f(r);
+	if (!t || t < 0 || t > 9999 || !i || i < 1 || i > 12 || !s || s < 1) return;
+	const n = new Date(Date.UTC(t, i - 1, s));
+	if (!(n.getUTCFullYear() !== t || n.getUTCMonth() !== i - 1 || n.getUTCDate() !== s)) return {
+		year: t,
+		month: i,
+		day: s
+	};
+}
+function C$1(r) {
+	const t = b$1(r);
+	return t ? new Date(Date.UTC(t.year, t.month - 1, t.day)) : void 0;
+}
+function T(r, t, i, s) {
+	const n = i ? {
+		year: i.getUTCFullYear(),
+		month: i.getUTCMonth() + 1,
+		day: i.getUTCDate()
+	} : null, e = s ? {
+		year: s.getUTCFullYear(),
+		month: s.getUTCMonth() + 1,
+		day: s.getUTCDate()
+	} : null;
+	return r === "year" ? {
+		min: n?.year ?? 1,
+		max: e?.year ?? 9999
+	} : r === "month" ? {
+		min: n && t.year === n.year ? n.month : 1,
+		max: e && t.year === e.year ? e.month : 12
+	} : {
+		min: n && t.year === n.year && t.month === n.month ? n.day : 1,
+		max: e && t.year === e.year && t.month === e.month ? e.day : c$1(t.year, t.month)
+	};
+}
+var import_src$1, settings, R, CANCEL_SYMBOL, getColumns, getRows, V, T$1, r, _, U, u$2, o, h, a, u$1, n$1, u$3, n;
+var init_dist$1 = __esmMin((() => {
+	init_main();
+	import_src$1 = require_src();
+	settings = {
+		actions: new Set([
+			"up",
+			"down",
+			"left",
+			"right",
+			"space",
+			"enter",
+			"cancel"
+		]),
+		aliases: /* @__PURE__ */ new Map([
+			["k", "up"],
+			["j", "down"],
+			["h", "left"],
+			["l", "right"],
+			["", "cancel"],
+			["escape", "cancel"]
+		]),
+		messages: {
+			cancel: "Canceled",
+			error: "Something went wrong"
+		},
+		withGuide: true,
+		date: {
+			monthNames: [...[
+				"January",
+				"February",
+				"March",
+				"April",
+				"May",
+				"June",
+				"July",
+				"August",
+				"September",
+				"October",
+				"November",
+				"December"
+			]],
+			messages: {
+				required: "Please enter a valid date",
+				invalidMonth: "There are only 12 months in a year",
+				invalidDay: (n, e) => `There are only ${n} days in ${e}`,
+				afterMin: (n) => `Date must be on or after ${n.toISOString().slice(0, 10)}`,
+				beforeMax: (n) => `Date must be on or before ${n.toISOString().slice(0, 10)}`
+			}
+		}
+	};
+	R = globalThis.process.platform.startsWith("win");
+	CANCEL_SYMBOL = Symbol("clack:cancel");
+	getColumns = (e) => "columns" in e && typeof e.columns == "number" ? e.columns : 80, getRows = (e) => "rows" in e && typeof e.rows == "number" ? e.rows : 20;
+	V = class {
+		input;
+		output;
+		_abortSignal;
+		rl;
+		opts;
+		_render;
+		_track = false;
+		_prevFrame = "";
+		_subscribers = /* @__PURE__ */ new Map();
+		_cursor = 0;
+		state = "initial";
+		error = "";
+		value;
+		userInput = "";
+		constructor(t, e = true) {
+			const { input: i = stdin, output: n = stdout, render: s, signal: r, ...o } = t;
+			this.opts = o, this.onKeypress = this.onKeypress.bind(this), this.close = this.close.bind(this), this.render = this.render.bind(this), this._render = s.bind(this), this._track = e, this._abortSignal = r, this.input = i, this.output = n;
+		}
+		/**
+		* Unsubscribe all listeners
+		*/
+		unsubscribe() {
+			this._subscribers.clear();
+		}
+		/**
+		* Set a subscriber with opts
+		* @param event - The event name
+		*/
+		setSubscriber(t, e) {
+			const i = this._subscribers.get(t) ?? [];
+			i.push(e), this._subscribers.set(t, i);
+		}
+		/**
+		* Subscribe to an event
+		* @param event - The event name
+		* @param cb - The callback
+		*/
+		on(t, e) {
+			this.setSubscriber(t, { cb: e });
+		}
+		/**
+		* Subscribe to an event once
+		* @param event - The event name
+		* @param cb - The callback
+		*/
+		once(t, e) {
+			this.setSubscriber(t, {
+				cb: e,
+				once: true
+			});
+		}
+		/**
+		* Emit an event with data
+		* @param event - The event name
+		* @param data - The data to pass to the callback
+		*/
+		emit(t, ...e) {
+			const i = this._subscribers.get(t) ?? [], n = [];
+			for (const s of i) s.cb(...e), s.once && n.push(() => i.splice(i.indexOf(s), 1));
+			for (const s of n) s();
+		}
+		prompt() {
+			return new Promise((t) => {
+				if (this._abortSignal) {
+					if (this._abortSignal.aborted) return this.state = "cancel", this.close(), t(CANCEL_SYMBOL);
+					this._abortSignal.addEventListener("abort", () => {
+						this.state = "cancel", this.close();
+					}, { once: true });
+				}
+				this.rl = l__default.createInterface({
+					input: this.input,
+					tabSize: 2,
+					prompt: "",
+					escapeCodeTimeout: 50,
+					terminal: true
+				}), this.rl.prompt(), this.opts.initialUserInput !== void 0 && this._setUserInput(this.opts.initialUserInput, true), this.input.on("keypress", this.onKeypress), setRawMode(this.input, true), this.output.on("resize", this.render), this.render(), this.once("submit", () => {
+					this.output.write(import_src$1.cursor.show), this.output.off("resize", this.render), setRawMode(this.input, false), t(this.value);
+				}), this.once("cancel", () => {
+					this.output.write(import_src$1.cursor.show), this.output.off("resize", this.render), setRawMode(this.input, false), t(CANCEL_SYMBOL);
+				});
+			});
+		}
+		_isActionKey(t, e) {
+			return t === "	";
+		}
+		_shouldSubmit(t, e) {
+			return true;
+		}
+		_setValue(t) {
+			this.value = t, this.emit("value", this.value);
+		}
+		_setUserInput(t, e) {
+			this.userInput = t ?? "", this.emit("userInput", this.userInput), e && this._track && this.rl && (this.rl.write(this.userInput), this._cursor = this.rl.cursor);
+		}
+		_clearUserInput() {
+			this.rl?.write(null, {
+				ctrl: true,
+				name: "u"
+			}), this._setUserInput("");
+		}
+		onKeypress(t, e) {
+			if (this._track && e.name !== "return" && (e.name && this._isActionKey(t, e) && this.rl?.write(null, {
+				ctrl: true,
+				name: "h"
+			}), this._cursor = this.rl?.cursor ?? 0, this._setUserInput(this.rl?.line)), this.state === "error" && (this.state = "active"), e?.name && (!this._track && settings.aliases.has(e.name) && this.emit("cursor", settings.aliases.get(e.name)), settings.actions.has(e.name) && this.emit("cursor", e.name)), t && (t.toLowerCase() === "y" || t.toLowerCase() === "n") && this.emit("confirm", t.toLowerCase() === "y"), this.emit("key", t, e), e?.name === "return" && this._shouldSubmit(t, e)) {
+				if (this.opts.validate) {
+					const i = runValidation(this.opts.validate, this.value);
+					i && (this.error = i instanceof Error ? i.message : i, this.state = "error", this.rl?.write(this.userInput));
+				}
+				this.state !== "error" && (this.state = "submit");
+			}
+			isActionKey([
+				t,
+				e?.name,
+				e?.sequence
+			], "cancel") && (this.state = "cancel"), (this.state === "submit" || this.state === "cancel") && this.emit("finalize"), this.render(), (this.state === "submit" || this.state === "cancel") && this.close();
+		}
+		close() {
+			this.input.unpipe(), this.input.removeListener("keypress", this.onKeypress), this.output.write(`
+`), setRawMode(this.input, false), this.rl?.close(), this.rl = void 0, this.emit(`${this.state}`, this.value), this.unsubscribe();
+		}
+		restoreCursor() {
+			const t = wrapAnsi(this._prevFrame, process.stdout.columns, {
+				hard: true,
+				trim: false
+			}).split(`
+`).length - 1;
+			this.output.write(import_src$1.cursor.move(-999, t * -1));
+		}
+		render() {
+			const t = wrapAnsi(this._render(this) ?? "", process.stdout.columns, {
+				hard: true,
+				trim: false
+			});
+			if (t !== this._prevFrame) {
+				if (this.state === "initial") this.output.write(import_src$1.cursor.hide);
+				else {
+					const e = diffLines(this._prevFrame, t), i = getRows(this.output);
+					if (this.restoreCursor(), e) {
+						const n = Math.max(0, e.numLinesAfter - i), s = Math.max(0, e.numLinesBefore - i);
+						let r = e.lines.find((o) => o >= n);
+						if (r === void 0) {
+							this._prevFrame = t;
+							return;
+						}
+						if (e.lines.length === 1) {
+							this.output.write(import_src$1.cursor.move(0, r - s)), this.output.write(import_src$1.erase.lines(1));
+							const o = t.split(`
+`);
+							this.output.write(o[r]), this._prevFrame = t, this.output.write(import_src$1.cursor.move(0, o.length - r - 1));
+							return;
+						} else if (e.lines.length > 1) {
+							if (n < s) r = n;
+							else {
+								const h = r - s;
+								h > 0 && this.output.write(import_src$1.cursor.move(0, h));
+							}
+							this.output.write(import_src$1.erase.down());
+							const f = t.split(`
+`).slice(r);
+							this.output.write(f.join(`
+`)), this._prevFrame = t;
+							return;
+						}
+					}
+					this.output.write(import_src$1.erase.down());
+				}
+				this.output.write(t), this.state === "initial" && (this.state = "active"), this._prevFrame = t;
+			}
+		}
+	};
+	T$1 = class T extends V {
+		filteredOptions;
+		multiple;
+		isNavigating = false;
+		selectedValues = [];
+		focusedValue;
+		#e = 0;
+		#s = "";
+		#t;
+		#i;
+		#n;
+		get cursor() {
+			return this.#e;
+		}
+		get userInputWithCursor() {
+			if (!this.userInput) return styleText(["inverse", "hidden"], "_");
+			if (this._cursor >= this.userInput.length) return `${this.userInput}\u2588`;
+			const e = this.userInput.slice(0, this.cursor), t = this.userInput.slice(this.cursor, this.cursor + 1), i = this.userInput.slice(this.cursor + 1);
+			return `${e}${styleText("inverse", t)}${i}`;
+		}
+		get options() {
+			return typeof this.#i == "function" ? this.#i() : this.#i;
+		}
+		constructor(e) {
+			super(e), this.#i = e.options, this.#n = e.placeholder;
+			const t = this.options;
+			this.filteredOptions = [...t], this.multiple = e.multiple === true, this.#t = typeof e.options == "function" ? e.filter : e.filter ?? g;
+			let i;
+			if (e.initialValue && Array.isArray(e.initialValue) ? this.multiple ? i = e.initialValue : i = e.initialValue.slice(0, 1) : !this.multiple && this.options.length > 0 && (i = [this.options[0]?.value]), i) for (const s of i) {
+				const n = t.findIndex((o) => o.value === s);
+				n !== -1 && (this.toggleSelected(s), this.#e = n);
+			}
+			this.focusedValue = this.options[this.#e]?.value, this.on("key", (s, n) => this.#l(s, n)), this.on("userInput", (s) => this.#u(s));
+		}
+		_isActionKey(e, t) {
+			return e === "	" || this.multiple && this.isNavigating && t.name === "space" && e !== void 0 && e !== "";
+		}
+		#l(e, t) {
+			const i = t.name === "up", s = t.name === "down", n = t.name === "return", o = this.userInput === "" || this.userInput === "	", u = this.#n, a = this.options, f = u !== void 0 && u !== "" && a.some((r) => !r.disabled && (this.#t ? this.#t(u, r) : true));
+			if (t.name === "tab" && o && f) {
+				this.userInput === "	" && this._clearUserInput(), this._setUserInput(u, true), this.isNavigating = false;
+				return;
+			}
+			i || s ? (this.#e = findCursor(this.#e, i ? -1 : 1, this.filteredOptions), this.focusedValue = this.filteredOptions[this.#e]?.value, this.multiple || (this.selectedValues = [this.focusedValue]), this.isNavigating = true) : n ? this.value = m$1(this.multiple, this.selectedValues) : this.multiple ? this.focusedValue !== void 0 && (t.name === "tab" || this.isNavigating && t.name === "space") ? this.toggleSelected(this.focusedValue) : this.isNavigating = false : (this.focusedValue && (this.selectedValues = [this.focusedValue]), this.isNavigating = false);
+		}
+		deselectAll() {
+			this.selectedValues = [];
+		}
+		toggleSelected(e) {
+			this.filteredOptions.length !== 0 && (this.multiple ? this.selectedValues.includes(e) ? this.selectedValues = this.selectedValues.filter((t) => t !== e) : this.selectedValues = [...this.selectedValues, e] : this.selectedValues = [e]);
+		}
+		#u(e) {
+			if (e !== this.#s) {
+				this.#s = e;
+				const t = this.options;
+				e && this.#t ? this.filteredOptions = t.filter((n) => this.#t?.(e, n)) : this.filteredOptions = [...t];
+				const i = p$1(this.focusedValue, this.filteredOptions);
+				this.#e = findCursor(i, 0, this.filteredOptions);
+				const s = this.filteredOptions[this.#e];
+				s && !s.disabled ? this.focusedValue = s.value : this.focusedValue = void 0, this.multiple || (this.focusedValue !== void 0 ? this.toggleSelected(this.focusedValue) : this.deselectAll());
+			}
+		}
+	};
+	r = class extends V {
+		get cursor() {
+			return this.value ? 0 : 1;
+		}
+		get _value() {
+			return this.cursor === 0;
+		}
+		constructor(t) {
+			super(t, false), this.value = !!t.initialValue, this.on("userInput", () => {
+				this.value = this._value;
+			}), this.on("confirm", (i) => {
+				this.output.write(import_src$1.cursor.move(0, -1)), this.value = i, this.state = "submit", this.close();
+			}), this.on("cursor", () => {
+				this.value = !this.value;
+			});
+		}
+	};
+	_ = {
+		Y: {
+			type: "year",
+			len: 4
+		},
+		M: {
+			type: "month",
+			len: 2
+		},
+		D: {
+			type: "day",
+			len: 2
+		}
+	};
+	U = class extends V {
+		#i;
+		#o;
+		#t;
+		#h;
+		#u;
+		#e = {
+			segmentIndex: 0,
+			positionInSegment: 0
+		};
+		#n = true;
+		#s = null;
+		inlineError = "";
+		get segmentCursor() {
+			return { ...this.#e };
+		}
+		get segmentValues() {
+			return { ...this.#t };
+		}
+		get segments() {
+			return this.#i;
+		}
+		get separator() {
+			return this.#o;
+		}
+		get formattedValue() {
+			return this.#l(this.#t);
+		}
+		#l(t) {
+			return this.#i.map((i) => t[i.type]).join(this.#o);
+		}
+		#r() {
+			this._setUserInput(this.#l(this.#t)), this._setValue(C$1(this.#t) ?? void 0);
+		}
+		constructor(t) {
+			const i = t.format ? {
+				segments: M(t.format),
+				separator: t.separator ?? "/"
+			} : P$1(t.locale), s = t.separator ?? i.separator, n = t.format ? M(t.format) : i.segments, e = t.initialValue ?? t.defaultValue, m = e ? {
+				year: String(e.getUTCFullYear()).padStart(4, "0"),
+				month: String(e.getUTCMonth() + 1).padStart(2, "0"),
+				day: String(e.getUTCDate()).padStart(2, "0")
+			} : {
+				year: "____",
+				month: "__",
+				day: "__"
+			}, o = n.map((a) => m[a.type]).join(s);
+			super({
+				...t,
+				initialUserInput: o
+			}, false), this.#i = n, this.#o = s, this.#t = m, this.#h = t.minDate, this.#u = t.maxDate, this.#r(), this.on("cursor", (a) => this.#f(a)), this.on("key", (a, u) => this.#y(a, u)), this.on("finalize", () => this.#p(t));
+		}
+		#a() {
+			const t = Math.max(0, Math.min(this.#e.segmentIndex, this.#i.length - 1)), i = this.#i[t];
+			if (i) return this.#e.positionInSegment = Math.max(0, Math.min(this.#e.positionInSegment, i.len - 1)), {
+				segment: i,
+				index: t
+			};
+		}
+		#m(t) {
+			this.inlineError = "", this.#s = null;
+			const i = this.#a();
+			i && (this.#e.segmentIndex = Math.max(0, Math.min(this.#i.length - 1, i.index + t)), this.#e.positionInSegment = 0, this.#n = true);
+		}
+		#d(t) {
+			const i = this.#a();
+			if (!i) return;
+			const { segment: s } = i, n = this.#t[s.type], e = !n || n.replace(/_/g, "") === "", m = Number.parseInt((n || "0").replace(/_/g, "0"), 10) || 0, o = T(s.type, f(this.#t), this.#h, this.#u);
+			let a;
+			e ? a = t === 1 ? o.min : o.max : a = Math.max(Math.min(o.max, m + t), o.min), this.#t = {
+				...this.#t,
+				[s.type]: a.toString().padStart(s.len, "0")
+			}, this.#n = true, this.#s = null, this.#r();
+		}
+		#f(t) {
+			if (t) switch (t) {
+				case "right": return this.#m(1);
+				case "left": return this.#m(-1);
+				case "up": return this.#d(1);
+				case "down": return this.#d(-1);
+			}
+		}
+		#y(t, i) {
+			if (i?.name === "backspace" || i?.sequence === "" || i?.sequence === "\b" || t === "" || t === "\b") {
+				this.inlineError = "";
+				const n = this.#a();
+				if (!n) return;
+				if (!this.#t[n.segment.type].replace(/_/g, "")) {
+					this.#m(-1);
+					return;
+				}
+				this.#t[n.segment.type] = "_".repeat(n.segment.len), this.#n = true, this.#e.positionInSegment = 0, this.#r();
+				return;
+			}
+			if (i?.name === "tab") {
+				this.inlineError = "";
+				const n = this.#a();
+				if (!n) return;
+				const e = i.shift ? -1 : 1, m = n.index + e;
+				m >= 0 && m < this.#i.length && (this.#e.segmentIndex = m, this.#e.positionInSegment = 0, this.#n = true);
+				return;
+			}
+			if (t && /^[0-9]$/.test(t)) {
+				const n = this.#a();
+				if (!n) return;
+				const { segment: e } = n, m = !this.#t[e.type].replace(/_/g, "");
+				if (this.#n && this.#s !== null && !m) {
+					const h = this.#s + t, d = {
+						...this.#t,
+						[e.type]: h
+					}, g = this.#g(d, e);
+					if (g) {
+						this.inlineError = g, this.#s = null, this.#n = false;
+						return;
+					}
+					this.inlineError = "", this.#t[e.type] = h, this.#s = null, this.#n = false, this.#r(), n.index < this.#i.length - 1 && (this.#e.segmentIndex = n.index + 1, this.#e.positionInSegment = 0, this.#n = true);
+					return;
+				}
+				this.#n && !m && (this.#t[e.type] = "_".repeat(e.len), this.#e.positionInSegment = 0), this.#n = false, this.#s = null;
+				const o = this.#t[e.type], a = o.indexOf("_"), u = a >= 0 ? a : Math.min(this.#e.positionInSegment, e.len - 1);
+				if (u < 0 || u >= e.len) return;
+				let l = o.slice(0, u) + t + o.slice(u + 1), D = false;
+				if (u === 0 && o === "__" && (e.type === "month" || e.type === "day")) {
+					const h = Number.parseInt(t, 10);
+					l = `0${t}`, D = h <= (e.type === "month" ? 1 : 2);
+				}
+				if (e.type === "year" && (l = (o.replace(/_/g, "") + t).padStart(e.len, "_")), !l.includes("_")) {
+					const h = {
+						...this.#t,
+						[e.type]: l
+					}, d = this.#g(h, e);
+					if (d) {
+						this.inlineError = d;
+						return;
+					}
+				}
+				this.inlineError = "", this.#t[e.type] = l;
+				const y = l.includes("_") ? void 0 : b$1(this.#t);
+				if (y) {
+					const { year: h, month: d } = y, g = c$1(h, d);
+					this.#t = {
+						year: String(Math.max(0, Math.min(9999, h))).padStart(4, "0"),
+						month: String(Math.max(1, Math.min(12, d))).padStart(2, "0"),
+						day: String(Math.max(1, Math.min(g, y.day))).padStart(2, "0")
+					};
+				}
+				this.#r();
+				const S = l.indexOf("_");
+				D ? (this.#n = true, this.#s = t) : S >= 0 ? this.#e.positionInSegment = S : a >= 0 && n.index < this.#i.length - 1 ? (this.#e.segmentIndex = n.index + 1, this.#e.positionInSegment = 0, this.#n = true) : this.#e.positionInSegment = Math.min(u + 1, e.len - 1);
+			}
+		}
+		#g(t, i) {
+			const { month: s, day: n } = f(t);
+			if (i.type === "month" && (s < 0 || s > 12)) return settings.date.messages.invalidMonth;
+			if (i.type === "day" && (n < 0 || n > 31)) return settings.date.messages.invalidDay(31, "any month");
+		}
+		#p(t) {
+			const { year: i, month: s, day: n } = f(this.#t);
+			if (i && s && n) {
+				const e = c$1(i, s);
+				this.#t = {
+					...this.#t,
+					day: String(Math.min(n, e)).padStart(2, "0")
+				};
+			}
+			this.value = C$1(this.#t) ?? t.defaultValue ?? void 0;
+		}
+	};
+	u$2 = class u extends V {
+		options;
+		cursor = 0;
+		#t;
+		getGroupItems(t) {
+			return this.options.filter((r) => r.group === t);
+		}
+		isGroupSelected(t) {
+			const r = this.getGroupItems(t), e = this.value;
+			return e === void 0 ? false : r.every((s) => e.includes(s.value));
+		}
+		toggleValue() {
+			const t = this.options[this.cursor];
+			if (t !== void 0) if (this.value === void 0 && (this.value = []), t.group === true) {
+				const r = t.value, e = this.getGroupItems(r);
+				this.isGroupSelected(r) ? this.value = this.value.filter((s) => e.findIndex((i) => i.value === s) === -1) : this.value = [...this.value, ...e.map((s) => s.value)], this.value = Array.from(new Set(this.value));
+			} else {
+				const r = this.value.includes(t.value);
+				this.value = r ? this.value.filter((e) => e !== t.value) : [...this.value, t.value];
+			}
+		}
+		constructor(t) {
+			super(t, false);
+			const { options: r } = t;
+			this.#t = t.selectableGroups !== false, this.options = Object.entries(r).flatMap(([e, s]) => [{
+				value: e,
+				group: true,
+				label: e
+			}, ...s.map((i) => ({
+				...i,
+				group: e
+			}))]), this.value = [...t.initialValues ?? []], this.cursor = Math.max(this.options.findIndex(({ value: e }) => e === t.cursorAt), this.#t ? 0 : 1), this.on("cursor", (e) => {
+				switch (e) {
+					case "left":
+					case "up": {
+						this.cursor = this.cursor === 0 ? this.options.length - 1 : this.cursor - 1;
+						const s = this.options[this.cursor]?.group === true;
+						!this.#t && s && (this.cursor = this.cursor === 0 ? this.options.length - 1 : this.cursor - 1);
+						break;
+					}
+					case "down":
+					case "right": {
+						this.cursor = this.cursor === this.options.length - 1 ? 0 : this.cursor + 1;
+						const s = this.options[this.cursor]?.group === true;
+						!this.#t && s && (this.cursor = this.cursor === this.options.length - 1 ? 0 : this.cursor + 1);
+						break;
+					}
+					case "space":
+						this.toggleValue();
+						break;
+				}
+			});
+		}
+	};
+	o = /* @__PURE__ */ new Set([
+		"up",
+		"down",
+		"left",
+		"right"
+	]);
+	h = class extends V {
+		#t = false;
+		#s;
+		focused = "editor";
+		get userInputWithCursor() {
+			if (this.state === "submit") return this.userInput;
+			const t = this.userInput;
+			if (this.cursor >= t.length) return `${t}\u2588`;
+			const s = t.slice(0, this.cursor), r = t.slice(this.cursor, this.cursor + 1), i = t.slice(this.cursor + 1);
+			return r === `
+` ? `${s}\u2588
+${i}` : `${s}${styleText("inverse", r)}${i}`;
+		}
+		get cursor() {
+			return this._cursor;
+		}
+		#r(t) {
+			if (this.userInput.length === 0) {
+				this._setUserInput(t);
+				return;
+			}
+			this._setUserInput(this.userInput.slice(0, this.cursor) + t + this.userInput.slice(this.cursor));
+		}
+		#i(t) {
+			const s = this.value ?? "";
+			switch (t) {
+				case "up":
+					this._cursor = findTextCursor(this._cursor, 0, -1, s);
+					return;
+				case "down":
+					this._cursor = findTextCursor(this._cursor, 0, 1, s);
+					return;
+				case "left":
+					this._cursor = findTextCursor(this._cursor, -1, 0, s);
+					return;
+				case "right":
+					this._cursor = findTextCursor(this._cursor, 1, 0, s);
+					return;
+			}
+		}
+		_shouldSubmit(t, s) {
+			if (this.#s) return this.focused === "submit" ? true : (this.#r(`
+`), this._cursor++, false);
+			const r = this.#t;
+			return this.#t = true, r && this.cursor === this.userInput.length ? (this.userInput[this.cursor - 1] === `
+` && (this._setUserInput(this.userInput.slice(0, this.cursor - 1) + this.userInput.slice(this.cursor)), this._cursor--), true) : (this.#r(`
+`), this._cursor++, false);
+		}
+		constructor(t) {
+			const s = t.initialUserInput ?? t.initialValue;
+			super({
+				...t,
+				initialUserInput: s
+			}, false), s !== void 0 && (this._cursor = s.length), this.#s = t.showSubmit ?? false, this.on("key", (r, i) => {
+				if (i?.name && o.has(i.name)) {
+					this.#t = false, this.#i(i.name);
+					return;
+				}
+				if (r === "	" && this.#s) {
+					this.focused = this.focused === "editor" ? "submit" : "editor";
+					return;
+				}
+				if (i?.name !== "return") {
+					if (this.#t = false, i?.name === "backspace" && this.cursor > 0) {
+						this._setUserInput(this.userInput.slice(0, this.cursor - 1) + this.userInput.slice(this.cursor)), this._cursor--;
+						return;
+					}
+					if (i?.name === "delete" && this.cursor < this.userInput.length) {
+						this._setUserInput(this.userInput.slice(0, this.cursor) + this.userInput.slice(this.cursor + 1));
+						return;
+					}
+					r && (this.#s && this.focused === "submit" && (this.focused = "editor"), this.#r(r ?? ""), this._cursor++);
+				}
+			}), this.on("userInput", (r) => {
+				this._setValue(r);
+			}), this.on("finalize", () => {
+				this.value || (this.value = t.defaultValue), this.value === void 0 && (this.value = "");
+			});
+		}
+	};
+	a = class extends V {
+		options;
+		cursor = 0;
+		get _value() {
+			return this.options[this.cursor]?.value;
+		}
+		get _enabledOptions() {
+			return this.options.filter((e) => e.disabled !== true);
+		}
+		toggleAll() {
+			const e = this._enabledOptions, i = this.value !== void 0 && this.value.length === e.length;
+			this.value = i ? [] : e.map((t) => t.value);
+		}
+		toggleInvert() {
+			const e = this.value;
+			if (!e) return;
+			const i = this._enabledOptions.filter((t) => !e.includes(t.value));
+			this.value = i.map((t) => t.value);
+		}
+		toggleValue() {
+			this.value === void 0 && (this.value = []);
+			const e = this.value.includes(this._value);
+			this.value = e ? this.value.filter((i) => i !== this._value) : [...this.value, this._value];
+		}
+		constructor(e) {
+			super(e, false), this.options = e.options, this.value = [...e.initialValues ?? []];
+			const i = Math.max(this.options.findIndex(({ value: t }) => t === e.cursorAt), 0);
+			this.cursor = this.options[i]?.disabled ? findCursor(i, 1, this.options) : i, this.on("key", (t, l) => {
+				l.name === "a" && this.toggleAll(), l.name === "i" && this.toggleInvert();
+			}), this.on("cursor", (t) => {
+				switch (t) {
+					case "left":
+					case "up":
+						this.cursor = findCursor(this.cursor, -1, this.options);
+						break;
+					case "down":
+					case "right":
+						this.cursor = findCursor(this.cursor, 1, this.options);
+						break;
+					case "space":
+						this.toggleValue();
+						break;
+				}
+			});
+		}
+	};
+	u$1 = class u extends V {
+		_mask = "•";
+		get cursor() {
+			return this._cursor;
+		}
+		get masked() {
+			return this.userInput.replaceAll(/./g, this._mask);
+		}
+		get userInputWithCursor() {
+			if (this.state === "submit" || this.state === "cancel") return this.masked;
+			const t = this.userInput;
+			if (this.cursor >= t.length) return `${this.masked}${styleText(["inverse", "hidden"], "_")}`;
+			const s = this.masked, r = s.slice(0, this.cursor), i = s.slice(this.cursor, this.cursor + 1), o = s.slice(this.cursor + 1);
+			return `${r}${styleText("inverse", i)}${o}`;
+		}
+		clear() {
+			this._clearUserInput();
+		}
+		constructor({ mask: t, ...s }) {
+			super(s), this._mask = t ?? "•", this.on("userInput", (r) => {
+				this._setValue(r);
+			}), this.on("finalize", () => {
+				this.value === void 0 && (this.value = "");
+			});
+		}
+	};
+	n$1 = class n extends V {
+		options;
+		cursor = 0;
+		get _selectedValue() {
+			return this.options[this.cursor];
+		}
+		changeValue() {
+			const e = this._selectedValue;
+			this.value = e === void 0 ? void 0 : e.value;
+		}
+		constructor(e) {
+			super(e, false), this.options = e.options;
+			const o = this.options.findIndex(({ value: s }) => s === e.initialValue), t = o === -1 ? 0 : o;
+			this.cursor = this.options[t]?.disabled ? findCursor(t, 1, this.options) : t, this.changeValue(), this.on("cursor", (s) => {
+				switch (s) {
+					case "left":
+					case "up":
+						this.cursor = findCursor(this.cursor, -1, this.options);
+						break;
+					case "down":
+					case "right":
+						this.cursor = findCursor(this.cursor, 1, this.options);
+						break;
+				}
+				this.changeValue();
+			});
+		}
+	};
+	u$3 = class extends V {
+		options;
+		cursor = 0;
+		constructor(t) {
+			super(t, false), this.options = t.options;
+			const s = t.caseSensitive === true, i = this.options.map(({ value: [e] }) => s ? e : e?.toLowerCase());
+			this.cursor = Math.max(i.indexOf(t.initialValue), 0), this.on("key", (e) => {
+				if (!e) return;
+				const o = s ? e : e.toLowerCase();
+				if (!i.includes(o)) return;
+				const n = this.options.find(({ value: [r] }) => s ? r === o : r?.toLowerCase() === o);
+				n && (this.value = n.value, this.state = "submit", this.emit("submit"));
+			});
+		}
+	};
+	n = class extends V {
+		get userInputWithCursor() {
+			if (this.state === "submit") return this.userInput;
+			const t = this.userInput;
+			if (this.cursor >= t.length) return `${this.userInput}\u2588`;
+			const r = t.slice(0, this.cursor), s = t.slice(this.cursor, this.cursor + 1), e = t.slice(this.cursor + 1);
+			return `${r}${styleText("inverse", s)}${e}`;
+		}
+		get cursor() {
+			return this._cursor;
+		}
+		constructor(t) {
+			super({
+				...t,
+				initialUserInput: t.initialUserInput ?? t.initialValue
+			}), this.on("userInput", (r) => {
+				this._setValue(r);
+			}), this.on("finalize", () => {
+				this.value || (this.value = t.defaultValue), this.value === void 0 && (this.value = "");
+			});
+		}
+	};
+}));
+//#endregion
+//#region node_modules/.pnpm/@clack+prompts@1.7.0/node_modules/@clack/prompts/dist/index.mjs
+var dist_exports = /* @__PURE__ */ __exportAll({
+	MULTISELECT_INSTRUCTIONS: () => MULTISELECT_INSTRUCTIONS,
+	SELECT_INSTRUCTIONS: () => SELECT_INSTRUCTIONS,
+	S_BAR: () => S_BAR,
+	S_BAR_END: () => S_BAR_END,
+	S_BAR_END_RIGHT: () => S_BAR_END_RIGHT,
+	S_BAR_H: () => S_BAR_H,
+	S_BAR_START: () => S_BAR_START,
+	S_BAR_START_RIGHT: () => S_BAR_START_RIGHT,
+	S_CHECKBOX_ACTIVE: () => S_CHECKBOX_ACTIVE,
+	S_CHECKBOX_INACTIVE: () => S_CHECKBOX_INACTIVE,
+	S_CHECKBOX_SELECTED: () => S_CHECKBOX_SELECTED,
+	S_CONNECT_LEFT: () => S_CONNECT_LEFT,
+	S_CORNER_BOTTOM_LEFT: () => S_CORNER_BOTTOM_LEFT,
+	S_CORNER_BOTTOM_RIGHT: () => S_CORNER_BOTTOM_RIGHT,
+	S_CORNER_TOP_LEFT: () => S_CORNER_TOP_LEFT,
+	S_CORNER_TOP_RIGHT: () => S_CORNER_TOP_RIGHT,
+	S_ERROR: () => S_ERROR,
+	S_INFO: () => S_INFO,
+	S_PASSWORD_MASK: () => S_PASSWORD_MASK,
+	S_RADIO_ACTIVE: () => S_RADIO_ACTIVE,
+	S_RADIO_INACTIVE: () => S_RADIO_INACTIVE,
+	S_STEP_ACTIVE: () => S_STEP_ACTIVE,
+	S_STEP_CANCEL: () => S_STEP_CANCEL,
+	S_STEP_ERROR: () => S_STEP_ERROR,
+	S_STEP_SUBMIT: () => S_STEP_SUBMIT,
+	S_SUCCESS: () => S_SUCCESS,
+	S_WARN: () => S_WARN,
+	autocomplete: () => autocomplete,
+	autocompleteMultiselect: () => autocompleteMultiselect,
+	box: () => box,
+	cancel: () => cancel,
+	confirm: () => confirm,
+	date: () => date,
+	formatInstructionFooter: () => formatInstructionFooter,
+	group: () => group,
+	groupMultiselect: () => groupMultiselect,
+	intro: () => intro,
+	isCI: () => isCI,
+	isCancel: () => isCancel,
+	isTTY: () => isTTY,
+	limitOptions: () => limitOptions,
+	log: () => log,
+	multiline: () => multiline,
+	multiselect: () => multiselect,
+	note: () => note,
+	outro: () => outro,
+	password: () => password,
+	path: () => path,
+	progress: () => progress,
+	select: () => select,
+	selectKey: () => selectKey,
+	settings: () => settings,
+	spinner: () => spinner,
+	stream: () => stream,
+	symbol: () => symbol,
+	symbolBar: () => symbolBar,
+	taskLog: () => taskLog,
+	tasks: () => tasks,
+	text: () => text,
+	unicode: () => unicode,
+	unicodeOr: () => unicodeOr,
+	updateSettings: () => updateSettings
+});
+function isUnicodeSupported() {
+	if (process$1.platform !== "win32") return process$1.env.TERM !== "linux";
+	return Boolean(process$1.env.CI) || Boolean(process$1.env.WT_SESSION) || Boolean(process$1.env.TERMINUS_SUBLIME) || process$1.env.ConEmuTask === "{cmd::Cmder}" || process$1.env.TERM_PROGRAM === "Terminus-Sublime" || process$1.env.TERM_PROGRAM === "vscode" || process$1.env.TERM === "xterm-256color" || process$1.env.TERM === "alacritty" || process$1.env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
+}
+function formatInstructionFooter(o, e) {
+	const r = [`${e ? `${styleText("cyan", S_BAR)}  ` : ""}${o.join(" • ")}`];
+	return e && r.push(styleText("cyan", S_BAR_END)), r;
+}
+function P(t) {
+	return t.label ?? String(t.value ?? "");
+}
+function E(t, c) {
+	if (!t) return true;
+	const n = (c.label ?? String(c.value ?? "")).toLowerCase(), i = (c.hint ?? "").toLowerCase(), l = String(c.value).toLowerCase(), o = t.toLowerCase();
+	return n.includes(o) || i.includes(o) || l.includes(o);
+}
+function N(t, c) {
+	const n = [];
+	for (const i of c) t.includes(i.value) && n.push(i);
+	return n;
+}
+function A$1(n, e, t, o) {
+	let i = t, f = t;
+	return o === "center" ? i = Math.floor((e - n) / 2) : o === "right" && (i = e - n - t), f = e - i - n, [i, f];
+}
+function b(e, r) {
+	const t = e.segmentValues, o = e.segmentCursor;
+	if (r === "submit" || r === "cancel") return e.formattedValue;
+	const i = styleText("gray", e.separator);
+	return e.segments.map((l, d) => {
+		const c = d === o.segmentIndex && !["submit", "cancel"].includes(r), a = p[l.type];
+		return x(t[l.type], {
+			isActive: c,
+			label: a
+		});
+	}).join(i);
+}
+function x(e, r) {
+	const t = !e || e.replace(/_/g, "") === "";
+	return r.isActive ? styleText("inverse", t ? r.label : e.replace(/_/g, " ")) : t ? styleText("dim", r.label) : e.replace(/_/g, styleText("dim", " "));
+}
+function progress({ style: o = "heavy", max: d = 100, size: v = 40, ...x } = {}) {
+	const r = spinner(x);
+	let a = 0, n = "";
+	const c = Math.max(1, d), l = Math.max(1, v), S = (t) => {
+		switch (t) {
+			case "initial":
+			case "active": return (e) => styleText("magenta", e);
+			case "error":
+			case "cancel": return (e) => styleText("red", e);
+			case "submit": return (e) => styleText("green", e);
+			default: return (e) => styleText("magenta", e);
+		}
+	}, p = (t, e) => {
+		const m = Math.floor(a / c * l);
+		return `${S(t)(u[o].repeat(m))}${styleText("dim", u[o].repeat(l - m))} ${e}`;
+	}, h = (t = "") => {
+		n = t, r.start(p("initial", t));
+	}, g = (t = 1, e) => {
+		a = Math.min(c, t + a), r.message(p("active", e ?? n)), n = e ?? n;
+	};
+	return {
+		start: h,
+		stop: r.stop,
+		cancel: r.cancel,
+		error: r.error,
+		clear: r.clear,
+		advance: g,
+		isCancelled: r.isCancelled,
+		message: (t) => g(0, t)
+	};
+}
+var import_src, unicode, isCI, isTTY, unicodeOr, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_ERROR, S_STEP_SUBMIT, S_BAR_START, S_BAR, S_BAR_END, S_BAR_START_RIGHT, S_BAR_END_RIGHT, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_CHECKBOX_ACTIVE, S_CHECKBOX_SELECTED, S_CHECKBOX_INACTIVE, S_PASSWORD_MASK, S_BAR_H, S_CORNER_TOP_RIGHT, S_CONNECT_LEFT, S_CORNER_BOTTOM_RIGHT, S_CORNER_BOTTOM_LEFT, S_CORNER_TOP_LEFT, S_INFO, S_SUCCESS, S_WARN, S_ERROR, symbol, symbolBar, I, limitOptions, autocomplete, autocompleteMultiselect, J, K, Q, box, confirm, date, p, group, MULTISELECT_INSTRUCTIONS, m, multiselect, groupMultiselect, log, cancel, intro, outro, multiline, W$1, C, note, password, path, W, spinner, u, SELECT_INSTRUCTIONS, c, select, selectKey, i, stream, tasks, A, taskLog, text;
+var init_dist = __esmMin((() => {
+	init_dist$1();
+	init_main();
+	init_dist$2();
+	import_src = require_src();
+	unicode = isUnicodeSupported(), isCI = () => process.env.CI === "true", isTTY = (o) => o.isTTY === true, unicodeOr = (o, e) => unicode ? o : e, S_STEP_ACTIVE = unicodeOr("◆", "*"), S_STEP_CANCEL = unicodeOr("■", "x"), S_STEP_ERROR = unicodeOr("▲", "x"), S_STEP_SUBMIT = unicodeOr("◇", "o"), S_BAR_START = unicodeOr("┌", "T"), S_BAR = unicodeOr("│", "|"), S_BAR_END = unicodeOr("└", "—"), S_BAR_START_RIGHT = unicodeOr("┐", "T"), S_BAR_END_RIGHT = unicodeOr("┘", "—"), S_RADIO_ACTIVE = unicodeOr("●", ">"), S_RADIO_INACTIVE = unicodeOr("○", " "), S_CHECKBOX_ACTIVE = unicodeOr("◻", "[•]"), S_CHECKBOX_SELECTED = unicodeOr("◼", "[+]"), S_CHECKBOX_INACTIVE = unicodeOr("◻", "[ ]"), S_PASSWORD_MASK = unicodeOr("▪", "•"), S_BAR_H = unicodeOr("─", "-"), S_CORNER_TOP_RIGHT = unicodeOr("╮", "+"), S_CONNECT_LEFT = unicodeOr("├", "+"), S_CORNER_BOTTOM_RIGHT = unicodeOr("╯", "+"), S_CORNER_BOTTOM_LEFT = unicodeOr("╰", "+"), S_CORNER_TOP_LEFT = unicodeOr("╭", "+"), S_INFO = unicodeOr("●", "•"), S_SUCCESS = unicodeOr("◆", "*"), S_WARN = unicodeOr("▲", "!"), S_ERROR = unicodeOr("■", "x"), symbol = (o) => {
+		switch (o) {
+			case "initial":
+			case "active": return styleText("cyan", S_STEP_ACTIVE);
+			case "cancel": return styleText("red", S_STEP_CANCEL);
+			case "error": return styleText("yellow", S_STEP_ERROR);
+			case "submit": return styleText("green", S_STEP_SUBMIT);
+		}
+	}, symbolBar = (o) => {
+		switch (o) {
+			case "initial":
+			case "active": return styleText("cyan", S_BAR);
+			case "cancel": return styleText("red", S_BAR);
+			case "error": return styleText("yellow", S_BAR);
+			case "submit": return styleText("green", S_BAR);
+		}
+	};
+	I = (l, e, w, p, b, C = false) => {
+		let r = e, O = 0;
+		if (C) for (let i = p - 1; i >= w; i--) {
+			const m = l[i];
+			if (m && (r -= m.length), O++, r <= b) break;
+		}
+		else for (let i = w; i < p; i++) {
+			const m = l[i];
+			if (m && (r -= m.length), O++, r <= b) break;
+		}
+		return {
+			lineCount: r,
+			removals: O
+		};
+	};
+	limitOptions = ({ cursor: l, options: e, style: w, output: p = process.stdout, maxItems: b = Number.POSITIVE_INFINITY, columnPadding: C = 0, rowPadding: r = 4 }) => {
+		const i = getColumns(p) - C, m = getRows(p), M = styleText("dim", "..."), v = Math.max(m - r, 0), a = Math.max(Math.min(b, v), 5);
+		let f = 0;
+		l >= a - 3 && (f = Math.max(Math.min(l - a + 3, e.length - a), 0));
+		let d = a < e.length && f > 0, c = a < e.length && f + a < e.length;
+		const W = Math.min(f + a, e.length), s = [];
+		let g = 0;
+		d && g++, c && g++;
+		const T = f + (d ? 1 : 0), y = W - (c ? 1 : 0);
+		for (let t = T; t < y; t++) {
+			const n = e[t], h = wrapAnsi(n ? w(n, t === l) : "", i, {
+				hard: true,
+				trim: false
+			}).split(`
+`);
+			s.push(h), g += h.length;
+		}
+		if (g > v) {
+			let t = 0, n = 0, o = g;
+			const h = l - T;
+			let u = v;
+			const L = () => I(s, o, 0, h, u), E = () => I(s, o, h + 1, s.length, u, true);
+			d ? ({lineCount: o, removals: t} = L(), o > u && (c || (u -= 1), {lineCount: o, removals: n} = E())) : (c || (u -= 1), {lineCount: o, removals: n} = E(), o > u && (u -= 1, {lineCount: o, removals: t} = L())), t > 0 && (d = true, s.splice(0, t)), n > 0 && (c = true, s.splice(s.length - n, n));
+		}
+		const x = [];
+		d && x.push(M);
+		for (const t of s) for (const n of t) x.push(n);
+		return c && x.push(M), x;
+	};
+	autocomplete = (t) => new T$1({
+		options: t.options,
+		initialValue: t.initialValue ? [t.initialValue] : void 0,
+		initialUserInput: t.initialUserInput,
+		placeholder: t.placeholder,
+		filter: t.filter ?? ((n, i) => E(n, i)),
+		signal: t.signal,
+		input: t.input,
+		output: t.output,
+		validate: t.validate,
+		render() {
+			const n = t.withGuide ?? settings.withGuide, i = n ? [`${styleText("gray", S_BAR)}`, `${symbol(this.state)}  ${t.message}`] : [`${symbol(this.state)}  ${t.message}`], l = this.userInput, o = this.options, m = t.placeholder, p = l === "" && m !== void 0, $ = (r, s) => {
+				const a = P(r), u = r.hint && r.value === this.focusedValue ? styleText("dim", ` (${r.hint})`) : "";
+				switch (s) {
+					case "active": return `${styleText("green", S_RADIO_ACTIVE)} ${a}${u}`;
+					case "inactive": return `${styleText("dim", S_RADIO_INACTIVE)} ${styleText("dim", a)}`;
+					case "disabled": return `${styleText("gray", S_RADIO_INACTIVE)} ${styleText(["strikethrough", "gray"], a)}`;
+				}
+			};
+			switch (this.state) {
+				case "submit": {
+					const r = N(this.selectedValues, o), s = r.length > 0 ? `  ${styleText("dim", r.map(P).join(", "))}` : "", a = n ? styleText("gray", S_BAR) : "";
+					return `${i.join(`
+`)}
+${a}${s}`;
+				}
+				case "cancel": {
+					const r = l ? `  ${styleText(["strikethrough", "dim"], l)}` : "", s = n ? styleText("gray", S_BAR) : "";
+					return `${i.join(`
+`)}
+${s}${r}`;
+				}
+				default: {
+					const r = this.state === "error" ? "yellow" : "cyan", s = n ? `${styleText(r, S_BAR)}  ` : "", a = n ? styleText(r, S_BAR_END) : "";
+					let u = "";
+					if (this.isNavigating || p) {
+						const d = p ? m : l;
+						u = d !== "" ? ` ${styleText("dim", d)}` : "";
+					} else u = ` ${this.userInputWithCursor}`;
+					const V = this.filteredOptions.length !== o.length ? styleText("dim", ` (${this.filteredOptions.length} match${this.filteredOptions.length === 1 ? "" : "es"})`) : "", y = this.filteredOptions.length === 0 && l ? [`${s}${styleText("yellow", "No matches found")}`] : [], b = this.state === "error" ? [`${s}${styleText("yellow", this.error)}`] : [];
+					n && i.push(`${s.trimEnd()}`), i.push(`${s}${styleText("dim", "Search:")}${u}${V}`, ...y, ...b);
+					const g = [`${s}${[
+						`${styleText("dim", "↑/↓")} to select`,
+						`${styleText("dim", "Enter:")} confirm`,
+						`${styleText("dim", "Type:")} to search`
+					].join(" • ")}`, a], O = this.filteredOptions.length === 0 ? [] : limitOptions({
+						cursor: this.cursor,
+						options: this.filteredOptions,
+						columnPadding: n ? 3 : 0,
+						rowPadding: i.length + g.length,
+						style: (d, f) => $(d, d.disabled ? "disabled" : f ? "active" : "inactive"),
+						maxItems: t.maxItems,
+						output: t.output
+					});
+					return [
+						...i,
+						...O.map((d) => `${s}${d}`),
+						...g
+					].join(`
+`);
+				}
+			}
+		}
+	}).prompt(), autocompleteMultiselect = (t) => {
+		const c = (i, l, o, m) => {
+			const p = o.includes(i.value), $ = i.label ?? String(i.value ?? ""), r = i.hint && m !== void 0 && i.value === m ? styleText("dim", ` (${i.hint})`) : "", s = p ? styleText("green", S_CHECKBOX_SELECTED) : styleText("dim", S_CHECKBOX_INACTIVE);
+			return i.disabled ? `${styleText("gray", S_CHECKBOX_INACTIVE)} ${styleText(["strikethrough", "gray"], $)}` : l ? `${s} ${$}${r}` : `${s} ${styleText("dim", $)}`;
+		}, n = new T$1({
+			options: t.options,
+			multiple: true,
+			placeholder: t.placeholder,
+			filter: t.filter ?? ((i, l) => E(i, l)),
+			validate: () => {
+				if (t.required && n.selectedValues.length === 0) return "Please select at least one item";
+			},
+			initialValue: t.initialValues,
+			signal: t.signal,
+			input: t.input,
+			output: t.output,
+			render() {
+				const i = t.withGuide ?? settings.withGuide, l = `${i ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  ${t.message}
+`, o = this.userInput, m = t.placeholder, p = o === "" && m !== void 0, $ = this.isNavigating || p ? styleText("dim", p ? m : o) : this.userInputWithCursor, r = this.options, s = this.filteredOptions.length !== r.length ? styleText("dim", ` (${this.filteredOptions.length} match${this.filteredOptions.length === 1 ? "" : "es"})`) : "";
+				switch (this.state) {
+					case "submit": return `${l}${i ? `${styleText("gray", S_BAR)}  ` : ""}${styleText("dim", `${this.selectedValues.length} items selected`)}`;
+					case "cancel": return `${l}${i ? `${styleText("gray", S_BAR)}  ` : ""}${styleText(["strikethrough", "dim"], o)}`;
+					default: {
+						const a = this.state === "error" ? "yellow" : "cyan", u = i ? `${styleText(a, S_BAR)}  ` : "", V = i ? styleText(a, S_BAR_END) : "", y = [
+							`${styleText("dim", "↑/↓")} to navigate`,
+							`${styleText("dim", this.isNavigating ? "Space/Tab:" : "Tab:")} select`,
+							`${styleText("dim", "Enter:")} confirm`,
+							`${styleText("dim", "Type:")} to search`
+						], b = this.filteredOptions.length === 0 && o ? [`${u}${styleText("yellow", "No matches found")}`] : [], v = this.state === "error" ? [`${u}${styleText("yellow", this.error)}`] : [], g = [
+							...`${l}${i ? styleText(a, S_BAR) : ""}`.split(`
+`),
+							`${u}${styleText("dim", "Search:")} ${$}${s}`,
+							...b,
+							...v
+						], O = [`${u}${y.join(" • ")}`, V], d = limitOptions({
+							cursor: this.cursor,
+							options: this.filteredOptions,
+							style: (f, _) => c(f, _, this.selectedValues, this.focusedValue),
+							maxItems: t.maxItems,
+							output: t.output,
+							rowPadding: g.length + O.length
+						});
+						return [
+							...g,
+							...d.map((f) => `${u}${f}`),
+							...O
+						].join(`
+`);
+					}
+				}
+			}
+		});
+		return n.prompt();
+	};
+	J = [
+		S_CORNER_TOP_LEFT,
+		S_CORNER_TOP_RIGHT,
+		S_CORNER_BOTTOM_LEFT,
+		S_CORNER_BOTTOM_RIGHT
+	], K = [
+		S_BAR_START,
+		S_BAR_START_RIGHT,
+		S_BAR_END,
+		S_BAR_END_RIGHT
+	];
+	Q = (n) => n;
+	box = (n = "", e = "", t) => {
+		const o = t?.output ?? process.stdout, i = getColumns(o), R = 2, u = t?.titlePadding ?? 1, h = t?.contentPadding ?? 2, w = t?.width === void 0 || t.width === "auto" ? 1 : Math.min(1, t.width), m = t?.withGuide ?? settings.withGuide ? `${S_BAR} ` : "", b = t?.formatBorder ?? Q, a = (t?.rounded ? J : K).map(b), _ = b(S_BAR_H), B = b(S_BAR), p = fastStringWidth(m), x = fastStringWidth(e), O = i - p;
+		let r = Math.floor(i * w) - p;
+		if (t?.width === "auto") {
+			const c = n.split(`
+`);
+			let s = x + u * 2;
+			for (const G of c) {
+				const P = fastStringWidth(G) + h * 2;
+				P > s && (s = P);
+			}
+			const g = s + R;
+			g < r && (r = g);
+		}
+		r % 2 !== 0 && (r < O ? r++ : r--);
+		const d = r - R, S = d - u * 2, T = x > S ? `${e.slice(0, S - 3)}...` : e, [y, W] = A$1(fastStringWidth(T), d, u, t?.titleAlign), L = wrapAnsi(n, d - h * 2, {
+			hard: true,
+			trim: false
+		});
+		o.write(`${m}${a[0]}${_.repeat(y)}${T}${_.repeat(W)}${a[1]}
+`);
+		const E = L.split(`
+`);
+		for (const c of E) {
+			const [s, g] = A$1(fastStringWidth(c), d, h, t?.contentAlign);
+			o.write(`${m}${B}${" ".repeat(s)}${c}${" ".repeat(g)}${B}
+`);
+		}
+		o.write(`${m}${a[2]}${_.repeat(d)}${a[3]}
+`);
+	};
+	confirm = (i) => {
+		const a = i.active ?? "Yes", s = i.inactive ?? "No";
+		return new r({
+			active: a,
+			inactive: s,
+			signal: i.signal,
+			input: i.input,
+			output: i.output,
+			initialValue: i.initialValue ?? true,
+			render() {
+				const e = i.withGuide ?? settings.withGuide, u = `${symbol(this.state)}  `, l = e ? `${styleText("gray", S_BAR)}  ` : "", f = wrapTextWithPrefix(i.output, i.message, l, u), o = `${e ? `${styleText("gray", S_BAR)}
+` : ""}${f}
+`, c = this.value ? a : s;
+				switch (this.state) {
+					case "submit": return `${o}${e ? `${styleText("gray", S_BAR)}  ` : ""}${styleText("dim", c)}`;
+					case "cancel": return `${o}${e ? `${styleText("gray", S_BAR)}  ` : ""}${styleText(["strikethrough", "dim"], c)}${e ? `
+${styleText("gray", S_BAR)}` : ""}`;
+					default: {
+						const r = e ? `${styleText("cyan", S_BAR)}  ` : "", g = e ? styleText("cyan", S_BAR_END) : "";
+						return `${o}${r}${this.value ? `${styleText("green", S_RADIO_ACTIVE)} ${a}` : `${styleText("dim", S_RADIO_INACTIVE)} ${styleText("dim", a)}`}${i.vertical ? e ? `
+${styleText("cyan", S_BAR)}  ` : `
+` : ` ${styleText("dim", "/")} `}${this.value ? `${styleText("dim", S_RADIO_INACTIVE)} ${styleText("dim", s)}` : `${styleText("green", S_RADIO_ACTIVE)} ${s}`}
+${g}
+`;
+					}
+				}
+			}
+		}).prompt();
+	};
+	date = (e) => {
+		const r = e.validate;
+		return new U({
+			...e,
+			validate(t) {
+				if (t === void 0) return e.defaultValue !== void 0 ? void 0 : r ? runValidation(r, t) : settings.date.messages.required;
+				const o = (i) => i.toISOString().slice(0, 10);
+				if (e.minDate && o(t) < o(e.minDate)) return settings.date.messages.afterMin(e.minDate);
+				if (e.maxDate && o(t) > o(e.maxDate)) return settings.date.messages.beforeMax(e.maxDate);
+				if (r) return runValidation(r, t);
+			},
+			render() {
+				const t = (e?.withGuide ?? settings.withGuide) !== false, i = `${`${t ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  `}${e.message}
+`, l = this.state !== "initial" ? this.state : "active", d = b(this, l), c = this.value instanceof Date ? this.formattedValue : "";
+				switch (this.state) {
+					case "error": {
+						const a = this.error ? `  ${styleText("yellow", this.error)}` : "", s = t ? `${styleText("yellow", S_BAR)}  ` : "", f = t ? styleText("yellow", S_BAR_END) : "";
+						return `${i.trim()}
+${s}${d}
+${f}${a}
+`;
+					}
+					case "submit": {
+						const a = c ? `  ${styleText("dim", c)}` : "";
+						return `${i}${t ? styleText("gray", S_BAR) : ""}${a}`;
+					}
+					case "cancel": {
+						const a = c ? `  ${styleText(["strikethrough", "dim"], c)}` : "", s = t ? styleText("gray", S_BAR) : "";
+						return `${i}${s}${a}${c.trim() ? `
+${s}` : ""}`;
+					}
+					default: {
+						const a = t ? `${styleText("cyan", S_BAR)}  ` : "", s = t ? styleText("cyan", S_BAR_END) : "", f = t ? `${styleText("cyan", S_BAR)}  ` : "";
+						return `${i}${a}${d}${this.inlineError ? `
+${f}${styleText("yellow", this.inlineError)}` : ""}
+${s}
+`;
+					}
+				}
+			}
+		}).prompt();
+	};
+	p = {
+		year: "yyyy",
+		month: "mm",
+		day: "dd"
+	};
+	group = async (o, r) => {
+		const t = {}, p = Object.keys(o);
+		for (const e of p) {
+			const i = o[e], n = await i({ results: t })?.catch((a) => {
+				throw a;
+			});
+			if (typeof r?.onCancel == "function" && isCancel(n)) {
+				t[e] = "canceled", r.onCancel({ results: t });
+				continue;
+			}
+			t[e] = n;
+		}
+		return t;
+	};
+	MULTISELECT_INSTRUCTIONS = [
+		`${styleText("dim", "↑/↓")} to navigate`,
+		`${styleText("dim", "Space:")} select`,
+		`${styleText("dim", "Enter:")} confirm`
+	];
+	m = (i, u) => i.split(`
+`).map((d) => u(d)).join(`
+`);
+	multiselect = (i) => {
+		const u = (t, a) => {
+			const r = t.label ?? String(t.value);
+			return a === "disabled" ? `${styleText("gray", S_CHECKBOX_INACTIVE)} ${m(r, (o) => styleText(["strikethrough", "gray"], o))}${t.hint ? ` ${styleText("dim", `(${t.hint ?? "disabled"})`)}` : ""}` : a === "active" ? `${styleText("cyan", S_CHECKBOX_ACTIVE)} ${r}${t.hint ? ` ${styleText("dim", `(${t.hint})`)}` : ""}` : a === "selected" ? `${styleText("green", S_CHECKBOX_SELECTED)} ${m(r, (o) => styleText("dim", o))}${t.hint ? ` ${styleText("dim", `(${t.hint})`)}` : ""}` : a === "cancelled" ? `${m(r, (o) => styleText(["strikethrough", "dim"], o))}` : a === "active-selected" ? `${styleText("green", S_CHECKBOX_SELECTED)} ${r}${t.hint ? ` ${styleText("dim", `(${t.hint})`)}` : ""}` : a === "submitted" ? `${m(r, (o) => styleText("dim", o))}` : `${styleText("dim", S_CHECKBOX_INACTIVE)} ${m(r, (o) => styleText("dim", o))}`;
+		}, d = i.required ?? true, v = i.showInstructions ?? true;
+		return new a({
+			options: i.options,
+			signal: i.signal,
+			input: i.input,
+			output: i.output,
+			initialValues: i.initialValues,
+			required: d,
+			cursorAt: i.cursorAt,
+			validate(t) {
+				if (d && (t === void 0 || t.length === 0)) return `Please select at least one option.
+${styleText("reset", styleText("dim", `Press ${styleText([
+					"gray",
+					"bgWhite",
+					"inverse"
+				], " space ")} to select, ${styleText("gray", styleText("bgWhite", styleText("inverse", " enter ")))} to submit`))}`;
+			},
+			render() {
+				const t = i.withGuide ?? settings.withGuide, a = wrapTextWithPrefix(i.output, i.message, t ? `${symbolBar(this.state)}  ` : "", `${symbol(this.state)}  `), r = `${t ? `${styleText("gray", S_BAR)}
+` : ""}${a}
+`, o = this.value ?? [], p = (n, l) => {
+					if (n.disabled) return u(n, "disabled");
+					const s = o.includes(n.value);
+					return l && s ? u(n, "active-selected") : s ? u(n, "selected") : u(n, l ? "active" : "inactive");
+				};
+				switch (this.state) {
+					case "submit": {
+						const n = this.options.filter(({ value: s }) => o.includes(s)).map((s) => u(s, "submitted")).join(styleText("dim", ", ")) || styleText("dim", "none");
+						return `${r}${wrapTextWithPrefix(i.output, n, t ? `${styleText("gray", S_BAR)}  ` : "")}`;
+					}
+					case "cancel": {
+						const n = this.options.filter(({ value: s }) => o.includes(s)).map((s) => u(s, "cancelled")).join(styleText("dim", ", "));
+						if (n.trim() === "") return `${r}${styleText("gray", S_BAR)}`;
+						return `${r}${wrapTextWithPrefix(i.output, n, t ? `${styleText("gray", S_BAR)}  ` : "")}${t ? `
+${styleText("gray", S_BAR)}` : ""}`;
+					}
+					case "error": {
+						const n = t ? `${styleText("yellow", S_BAR)}  ` : "", l = this.error.split(`
+`).map(($, C) => C === 0 ? `${t ? `${styleText("yellow", S_BAR_END)}  ` : ""}${styleText("yellow", $)}` : `   ${$}`).join(`
+`), s = r.split(`
+`).length, h = l.split(`
+`).length + 1;
+						return `${r}${n}${limitOptions({
+							output: i.output,
+							options: this.options,
+							cursor: this.cursor,
+							maxItems: i.maxItems,
+							columnPadding: n.length,
+							rowPadding: s + h,
+							style: p
+						}).join(`
+${n}`)}
+${l}
+`;
+					}
+					default: {
+						const n = t ? `${styleText("cyan", S_BAR)}  ` : "", l = r.split(`
+`).length, s = v ? formatInstructionFooter(MULTISELECT_INSTRUCTIONS, t) : t ? [styleText("cyan", S_BAR_END)] : [], h = s.join(`
+`), $ = s.length + 1;
+						return `${r}${n}${limitOptions({
+							output: i.output,
+							options: this.options,
+							cursor: this.cursor,
+							maxItems: i.maxItems,
+							columnPadding: n.length,
+							rowPadding: l + $,
+							style: p
+						}).join(`
+${n}`)}
+${h}
+`;
+					}
+				}
+			}
+		}).prompt();
+	};
+	groupMultiselect = (o) => {
+		const { selectableGroups: h = true, groupSpacing: x = 0 } = o, m = (n, l, g = []) => {
+			const a = n.label ?? String(n.value), t = typeof n.group == "string", s = t && (g[g.indexOf(n) + 1] ?? { group: true }), u = t && s && s.group === true;
+			let r = "", c = "";
+			t && (h ? (r = u ? `${S_BAR_END} ` : `${S_BAR} `, c = u ? "  " : `${S_BAR} `) : r = "  ");
+			let i = "";
+			if (x > 0 && !t && (i = `
+`.repeat(x)), l === "active") return wrapTextWithPrefix(o.output, `${a}${n.hint ? ` ${styleText("dim", `(${n.hint})`)}` : ""}`, `${i}${styleText("dim", r)} `, `${i}${styleText("dim", r)}${styleText("cyan", S_CHECKBOX_ACTIVE)} `, `${i}${styleText("dim", c)} `);
+			if (l === "group-active") return wrapTextWithPrefix(o.output, a, `${i}${r} `, `${i}${r}${styleText("cyan", S_CHECKBOX_ACTIVE)} `, `${i}${c} `, (d) => styleText("dim", d));
+			if (l === "group-active-selected") return wrapTextWithPrefix(o.output, a, `${i}${r} `, `${i}${r}${styleText("green", S_CHECKBOX_SELECTED)} `, `${i}${c} `, (d) => styleText("dim", d));
+			if (l === "selected") {
+				const d = t || h ? styleText("green", S_CHECKBOX_SELECTED) : "";
+				return wrapTextWithPrefix(o.output, `${a}${n.hint ? ` (${n.hint})` : ""}`, `${i}${styleText("dim", r)} `, `${i}${styleText("dim", r)}${d} `, `${i}${styleText("dim", c)} `, (S) => styleText("dim", S));
+			}
+			if (l === "cancelled") return `${styleText(["strikethrough", "dim"], a)}`;
+			if (l === "active-selected") return wrapTextWithPrefix(o.output, `${a}${n.hint ? ` ${styleText("dim", `(${n.hint})`)}` : ""}`, `${i}${styleText("dim", r)} `, `${i}${styleText("dim", r)}${styleText("green", S_CHECKBOX_SELECTED)} `, `${i}${styleText("dim", c)} `);
+			if (l === "submitted") return `${styleText("dim", a)}`;
+			const f = t || h ? styleText("dim", S_CHECKBOX_INACTIVE) : "";
+			return wrapTextWithPrefix(o.output, a, `${i}${styleText("dim", r)} `, `${i}${styleText("dim", r)}${f} `, `${i}${styleText("dim", c)} `, (d) => styleText("dim", d));
+		}, y = o.required ?? true, I = o.showInstructions ?? true;
+		return new u$2({
+			options: o.options,
+			signal: o.signal,
+			input: o.input,
+			output: o.output,
+			initialValues: o.initialValues,
+			required: y,
+			cursorAt: o.cursorAt,
+			selectableGroups: h,
+			validate(n) {
+				if (y && (n === void 0 || n.length === 0)) return `Please select at least one option.
+${styleText("reset", styleText("dim", `Press ${styleText([
+					"gray",
+					"bgWhite",
+					"inverse"
+				], " space ")} to select, ${styleText("gray", styleText(["bgWhite", "inverse"], " enter "))} to submit`))}`;
+			},
+			render() {
+				const n = o.withGuide ?? settings.withGuide, l = `${n ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  ${o.message}
+`, g = this.value ?? [], a = (t, s) => {
+					const u = this.options, r = g.includes(t.value) || t.group === true && this.isGroupSelected(`${t.value}`);
+					return !s && typeof t.group == "string" && this.options[this.cursor]?.value === t.group ? m(t, r ? "group-active-selected" : "group-active", u) : s && r ? m(t, "active-selected", u) : r ? m(t, "selected", u) : m(t, s ? "active" : "inactive", u);
+				};
+				switch (this.state) {
+					case "submit": {
+						const t = this.options.filter(({ value: u }) => g.includes(u)).map((u) => m(u, "submitted")), s = t.length === 0 ? "" : `  ${t.join(styleText("dim", ", "))}`;
+						return `${l}${n ? styleText("gray", S_BAR) : ""}${s}`;
+					}
+					case "cancel": {
+						const t = this.options.filter(({ value: s }) => g.includes(s)).map((s) => m(s, "cancelled")).join(styleText("dim", ", "));
+						return `${l}${n ? `${styleText("gray", S_BAR)}  ` : ""}${t.trim() ? `${t}${n ? `
+${styleText("gray", S_BAR)}` : ""}` : ""}`;
+					}
+					case "error": {
+						const t = n ? `${styleText("yellow", S_BAR)}  ` : "", s = this.error.split(`
+`).map((i, f) => f === 0 ? `${n ? `${styleText("yellow", S_BAR_END)}  ` : ""}${styleText("yellow", i)}` : `   ${i}`).join(`
+`), u = l.split(`
+`).length, r = s.split(`
+`).length + 1;
+						return `${l}${t}${limitOptions({
+							output: o.output,
+							options: this.options,
+							cursor: this.cursor,
+							maxItems: o.maxItems,
+							columnPadding: t.length,
+							rowPadding: u + r,
+							style: a
+						}).join(`
+${t}`)}
+${s}
+`;
+					}
+					default: {
+						const t = n ? `${styleText("cyan", S_BAR)}  ` : "", s = l.split(`
+`).length, u = I ? formatInstructionFooter(MULTISELECT_INSTRUCTIONS, n) : n ? [styleText("cyan", S_BAR_END)] : [], r = u.join(`
+`), c = u.length + 1;
+						return `${l}${t}${limitOptions({
+							output: o.output,
+							options: this.options,
+							cursor: this.cursor,
+							maxItems: o.maxItems,
+							columnPadding: t.length,
+							rowPadding: s + c,
+							style: a
+						}).join(`
+${t}`)}
+${r}
+`;
+					}
+				}
+			}
+		}).prompt();
+	};
+	log = {
+		message: (s = [], { symbol: e = styleText("gray", S_BAR), secondarySymbol: r = styleText("gray", S_BAR), output: m = process.stdout, spacing: l = 1, withGuide: c } = {}) => {
+			const t = [], o = c ?? settings.withGuide, f = o ? r : "", O = o ? `${e}  ` : "", u = o ? `${r}  ` : "";
+			for (let i = 0; i < l; i++) t.push(f);
+			const g = Array.isArray(s) ? s : s.split(`
+`);
+			if (g.length > 0) {
+				const [i, ...y] = g;
+				i.length > 0 ? t.push(`${O}${i}`) : t.push(o ? e : "");
+				for (const p of y) p.length > 0 ? t.push(`${u}${p}`) : t.push(o ? r : "");
+			}
+			m.write(`${t.join(`
+`)}
+`);
+		},
+		info: (s, e) => {
+			log.message(s, {
+				...e,
+				symbol: styleText("blue", S_INFO)
+			});
+		},
+		success: (s, e) => {
+			log.message(s, {
+				...e,
+				symbol: styleText("green", S_SUCCESS)
+			});
+		},
+		step: (s, e) => {
+			log.message(s, {
+				...e,
+				symbol: styleText("green", S_STEP_SUBMIT)
+			});
+		},
+		warn: (s, e) => {
+			log.message(s, {
+				...e,
+				symbol: styleText("yellow", S_WARN)
+			});
+		},
+		/** alias for `log.warn()`. */
+		warning: (s, e) => {
+			log.warn(s, e);
+		},
+		error: (s, e) => {
+			log.message(s, {
+				...e,
+				symbol: styleText("red", S_ERROR)
+			});
+		}
+	};
+	cancel = (o = "", t) => {
+		const i = t?.output ?? process.stdout, e = t?.withGuide ?? settings.withGuide ? `${styleText("gray", S_BAR_END)}  ` : "";
+		i.write(`${e}${styleText("red", o)}
+
+`);
+	}, intro = (o = "", t) => {
+		const i = t?.output ?? process.stdout, e = t?.withGuide ?? settings.withGuide ? `${styleText("gray", S_BAR_START)}  ` : "";
+		i.write(`${e}${o}
+`);
+	}, outro = (o = "", t) => {
+		const i = t?.output ?? process.stdout, e = t?.withGuide ?? settings.withGuide ? `${styleText("gray", S_BAR)}
+${styleText("gray", S_BAR_END)}  ` : "";
+		i.write(`${e}${o}
+
+`);
+	};
+	multiline = (e) => new h({
+		validate: e.validate,
+		placeholder: e.placeholder,
+		defaultValue: e.defaultValue,
+		initialValue: e.initialValue,
+		showSubmit: e.showSubmit,
+		output: e.output,
+		signal: e.signal,
+		input: e.input,
+		render() {
+			const i = e?.withGuide ?? settings.withGuide, o = `${`${i ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  `}${e.message}
+`, m = e.placeholder && e.placeholder.length > 0 ? styleText("inverse", e.placeholder[0]) + styleText("dim", e.placeholder.slice(1)) : styleText(["inverse", "hidden"], "_"), a = this.userInput ? this.userInputWithCursor : m, l = this.value ?? "", c = e.showSubmit ? `
+  ${styleText(this.focused === "submit" ? "cyan" : "dim", "[ submit ]")}` : "";
+			switch (this.state) {
+				case "error": {
+					const n = `${styleText("yellow", S_BAR)}  `;
+					return `${o}${i ? wrapTextWithPrefix(e.output, a, n, void 0) : a}
+${styleText("yellow", S_BAR_END)}  ${styleText("yellow", this.error)}${c}
+`;
+				}
+				case "submit": {
+					const n = `${styleText("gray", S_BAR)}  `;
+					return `${o}${i ? wrapTextWithPrefix(e.output, l, n, void 0, void 0, (u) => styleText("dim", u)) : l ? styleText("dim", l) : ""}`;
+				}
+				case "cancel": {
+					const n = `${styleText("gray", S_BAR)}  `;
+					return `${o}${i ? wrapTextWithPrefix(e.output, l, n, void 0, void 0, (u) => styleText(["strikethrough", "dim"], u)) : l ? styleText(["strikethrough", "dim"], l) : ""}`;
+				}
+				default: {
+					const n = i ? `${styleText("cyan", S_BAR)}  ` : "", r = i ? styleText("cyan", S_BAR_END) : "";
+					return `${o}${i ? wrapTextWithPrefix(e.output, a, n) : a}
+${r}${c}
+`;
+				}
+			}
+		}
+	}).prompt();
+	W$1 = (o) => o, C = (o, e, s) => {
+		const a = {
+			hard: true,
+			trim: false
+		}, i = wrapAnsi(o, e, a).split(`
+`), c = i.reduce((n, t) => Math.max(fastStringWidth(t), n), 0);
+		return wrapAnsi(o, e - (i.map(s).reduce((n, t) => Math.max(fastStringWidth(t), n), 0) - c), a);
+	};
+	note = (o = "", e = "", s) => {
+		const a = s?.output ?? process$1.stdout, i = s?.withGuide ?? settings.withGuide, c = s?.format ?? W$1, g = [
+			"",
+			...C(o, getColumns(a) - 6, c).split(`
+`).map(c),
+			""
+		], n = fastStringWidth(e), t = Math.max(g.reduce((m, F) => {
+			const O = fastStringWidth(F);
+			return O > m ? O : m;
+		}, 0), n) + 2, h = g.map((m) => `${styleText("gray", S_BAR)}  ${m}${" ".repeat(t - fastStringWidth(m))}${styleText("gray", S_BAR)}`).join(`
+`), T = i ? `${styleText("gray", S_BAR)}
+` : "", l$1 = i ? S_CONNECT_LEFT : S_CORNER_BOTTOM_LEFT;
+		a.write(`${T}${styleText("green", S_STEP_SUBMIT)}  ${styleText("reset", e)} ${styleText("gray", S_BAR_H.repeat(Math.max(t - n - 1, 1)) + S_CORNER_TOP_RIGHT)}
+${h}
+${styleText("gray", l$1 + S_BAR_H.repeat(t + 2) + S_CORNER_BOTTOM_RIGHT)}
+`);
+	};
+	password = (r) => new u$1({
+		validate: r.validate,
+		mask: r.mask ?? S_PASSWORD_MASK,
+		signal: r.signal,
+		input: r.input,
+		output: r.output,
+		render() {
+			const e = r.withGuide ?? settings.withGuide, o = `${e ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  ${r.message}
+`, c = this.userInputWithCursor, i = this.masked;
+			switch (this.state) {
+				case "error": {
+					const s = e ? `${styleText("yellow", S_BAR)}  ` : "", n = e ? `${styleText("yellow", S_BAR_END)}  ` : "", l = i ?? "";
+					return r.clearOnError && this.clear(), `${o.trim()}
+${s}${l}
+${n}${styleText("yellow", this.error)}
+`;
+				}
+				case "submit": return `${o}${e ? `${styleText("gray", S_BAR)}  ` : ""}${i ? styleText("dim", i) : ""}`;
+				case "cancel": return `${o}${e ? `${styleText("gray", S_BAR)}  ` : ""}${i ? styleText(["strikethrough", "dim"], i) : ""}${i && e ? `
+${styleText("gray", S_BAR)}` : ""}`;
+				default: return `${o}${e ? `${styleText("cyan", S_BAR)}  ` : ""}${c}
+${e ? styleText("cyan", S_BAR_END) : ""}
+`;
+			}
+		}
+	}).prompt();
+	path = (e) => {
+		const a = e.validate;
+		return autocomplete({
+			...e,
+			initialUserInput: e.initialValue ?? e.root ?? process.cwd(),
+			maxItems: 5,
+			validate(t) {
+				if (!Array.isArray(t)) {
+					if (!t) return "Please select a path";
+					if (a) return runValidation(a, t);
+				}
+			},
+			options() {
+				const t = this.userInput;
+				if (t === "") return [];
+				try {
+					let i;
+					existsSync(t) ? lstatSync(t).isDirectory() && (!e.directory || t.endsWith("/")) ? i = t : i = dirname(t) : i = dirname(t);
+					const c = t.length > 1 && t.endsWith("/") ? t.slice(0, -1) : t;
+					return readdirSync(i).map((r) => {
+						const n = join(i, r);
+						return {
+							name: r,
+							path: n,
+							isDirectory: lstatSync(n).isDirectory()
+						};
+					}).filter(({ path: r, isDirectory: n }) => r.startsWith(c) && (n || !e.directory)).map((r) => ({ value: r.path }));
+				} catch {
+					return [];
+				}
+			}
+		});
+	};
+	W = (l) => styleText("magenta", l);
+	spinner = ({ indicator: l = "dots", onCancel: h, output: n = process.stdout, cancelMessage: G, errorMessage: O, frames: E = unicode ? [
+		"◒",
+		"◐",
+		"◓",
+		"◑"
+	] : [
+		"•",
+		"o",
+		"O",
+		"0"
+	], delay: F = unicode ? 80 : 120, signal: m, ...I } = {}) => {
+		const u = isCI();
+		let M, T, d = false, S = false, s = "", p, w = performance.now();
+		const x = getColumns(n), k = I?.styleFrame ?? W, g = (e) => {
+			const r = e > 1 ? O ?? settings.messages.error : G ?? settings.messages.cancel;
+			S = e === 1, d && (a(r, e), S && typeof h == "function" && h());
+		}, f = () => g(2), i = () => g(1), A = () => {
+			process.on("uncaughtExceptionMonitor", f), process.on("unhandledRejection", f), process.on("SIGINT", i), process.on("SIGTERM", i), process.on("exit", g), m && m.addEventListener("abort", i);
+		}, H = () => {
+			process.removeListener("uncaughtExceptionMonitor", f), process.removeListener("unhandledRejection", f), process.removeListener("SIGINT", i), process.removeListener("SIGTERM", i), process.removeListener("exit", g), m && m.removeEventListener("abort", i);
+		}, y = () => {
+			if (p === void 0) return;
+			u && n.write(`
+`);
+			const r = wrapAnsi(p, x, {
+				hard: true,
+				trim: false
+			}).split(`
+`);
+			r.length > 1 && n.write(import_src.cursor.up(r.length - 1)), n.write(import_src.cursor.to(0)), n.write(import_src.erase.down());
+		}, C = (e) => e.replace(/\.+$/, ""), _ = (e) => {
+			const r = (performance.now() - e) / 1e3, t = Math.floor(r / 60), o = Math.floor(r % 60);
+			return t > 0 ? `[${t}m ${o}s]` : `[${o}s]`;
+		}, N = I.withGuide ?? settings.withGuide, P = (e = "") => {
+			d = true, M = block({ output: n }), s = C(e), w = performance.now(), N && n.write(`${styleText("gray", S_BAR)}
+`);
+			let r = 0, t = 0;
+			A(), T = setInterval(() => {
+				if (u && s === p) return;
+				y(), p = s;
+				const o = k(E[r]);
+				let v;
+				if (u) v = `${o}  ${s}...`;
+				else if (l === "timer") v = `${o}  ${s} ${_(w)}`;
+				else {
+					const B = ".".repeat(Math.floor(t)).slice(0, 3);
+					v = `${o}  ${s}${B}`;
+				}
+				const j = wrapAnsi(v, x, {
+					hard: true,
+					trim: false
+				});
+				n.write(j), r = r + 1 < E.length ? r + 1 : 0, t = t < 4 ? t + .125 : 0;
+			}, F);
+		}, a = (e = "", r = 0, t = false) => {
+			if (!d) return;
+			d = false, clearInterval(T), y();
+			const o = r === 0 ? styleText("green", S_STEP_SUBMIT) : r === 1 ? styleText("red", S_STEP_CANCEL) : styleText("red", S_STEP_ERROR);
+			s = e ?? s, t || (l === "timer" ? n.write(`${o}  ${s} ${_(w)}
+`) : n.write(`${o}  ${s}
+`)), H(), M();
+		};
+		return {
+			start: P,
+			stop: (e = "") => a(e, 0),
+			message: (e = "") => {
+				s = C(e ?? s);
+			},
+			cancel: (e = "") => a(e, 1),
+			error: (e = "") => a(e, 2),
+			clear: () => a("", 0, true),
+			get isCancelled() {
+				return S;
+			}
+		};
+	};
+	u = {
+		light: unicodeOr("─", "-"),
+		heavy: unicodeOr("━", "="),
+		block: unicodeOr("█", "#")
+	};
+	SELECT_INSTRUCTIONS = [`${styleText("dim", "↑/↓")} to navigate`, `${styleText("dim", "Enter:")} confirm`];
+	c = (t, o) => t.includes(`
+`) ? t.split(`
+`).map((d) => o(d)).join(`
+`) : o(t);
+	select = (t) => {
+		const o = (n, m) => {
+			if (n === void 0) return "";
+			const s = n.label ?? String(n.value);
+			switch (m) {
+				case "disabled": return `${styleText("gray", S_RADIO_INACTIVE)} ${c(s, (i) => styleText("gray", i))}${n.hint ? ` ${styleText("dim", `(${n.hint ?? "disabled"})`)}` : ""}`;
+				case "selected": return `${c(s, (i) => styleText("dim", i))}`;
+				case "active": return `${styleText("green", S_RADIO_ACTIVE)} ${s}${n.hint ? ` ${styleText("dim", `(${n.hint})`)}` : ""}`;
+				case "cancelled": return `${c(s, (i) => styleText(["strikethrough", "dim"], i))}`;
+				default: return `${styleText("dim", S_RADIO_INACTIVE)} ${c(s, (i) => styleText("dim", i))}`;
+			}
+		}, d = t.showInstructions ?? true;
+		return new n$1({
+			options: t.options,
+			signal: t.signal,
+			input: t.input,
+			output: t.output,
+			initialValue: t.initialValue,
+			render() {
+				const n = t.withGuide ?? settings.withGuide, m = `${symbol(this.state)}  `, s = `${symbolBar(this.state)}  `, i = wrapTextWithPrefix(t.output, t.message, s, m), u = `${n ? `${styleText("gray", S_BAR)}
+` : ""}${i}
+`;
+				switch (this.state) {
+					case "submit": {
+						const r = n ? `${styleText("gray", S_BAR)}  ` : "";
+						return `${u}${wrapTextWithPrefix(t.output, o(this.options[this.cursor], "selected"), r)}`;
+					}
+					case "cancel": {
+						const r = n ? `${styleText("gray", S_BAR)}  ` : "";
+						return `${u}${wrapTextWithPrefix(t.output, o(this.options[this.cursor], "cancelled"), r)}${n ? `
+${styleText("gray", S_BAR)}` : ""}`;
+					}
+					default: {
+						const r = n ? `${styleText("cyan", S_BAR)}  ` : "", a = u.split(`
+`).length, p = d ? formatInstructionFooter(SELECT_INSTRUCTIONS, n) : n ? [styleText("cyan", S_BAR_END)] : [], b = p.join(`
+`), f = p.length + 1;
+						return `${u}${r}${limitOptions({
+							output: t.output,
+							cursor: this.cursor,
+							options: this.options,
+							maxItems: t.maxItems,
+							columnPadding: r.length,
+							rowPadding: a + f,
+							style: (g, x) => o(g, g.disabled ? "disabled" : x ? "active" : "inactive")
+						}).join(`
+${r}`)}
+${b}
+`;
+					}
+				}
+			}
+		}).prompt();
+	};
+	selectKey = (t) => {
+		const l = (e, a = "inactive") => {
+			if (e === void 0) return "";
+			const n = e.label ?? String(e.value);
+			return a === "selected" ? `${styleText("dim", n)}` : a === "cancelled" ? `${styleText(["strikethrough", "dim"], n)}` : a === "active" ? `${styleText(["bgCyan", "gray"], ` ${e.value} `)} ${n}${e.hint ? ` ${styleText("dim", `(${e.hint})`)}` : ""}` : `${styleText([
+				"gray",
+				"bgWhite",
+				"inverse"
+			], ` ${e.value} `)} ${n}${e.hint ? ` ${styleText("dim", `(${e.hint})`)}` : ""}`;
+		};
+		return new u$3({
+			options: t.options,
+			signal: t.signal,
+			input: t.input,
+			output: t.output,
+			initialValue: t.initialValue,
+			caseSensitive: t.caseSensitive,
+			render() {
+				const e = t.withGuide ?? settings.withGuide, a = `${e ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  ${t.message}
+`;
+				switch (this.state) {
+					case "submit": {
+						const n = e ? `${styleText("gray", S_BAR)}  ` : "", s = this.options.find((u) => u.value === this.value) ?? t.options[0];
+						return `${a}${wrapTextWithPrefix(t.output, l(s, "selected"), n)}`;
+					}
+					case "cancel": {
+						const n = e ? `${styleText("gray", S_BAR)}  ` : "";
+						return `${a}${wrapTextWithPrefix(t.output, l(this.options[0], "cancelled"), n)}${e ? `
+${styleText("gray", S_BAR)}` : ""}`;
+					}
+					default: {
+						const n = e ? `${styleText("cyan", S_BAR)}  ` : "", s = e ? styleText("cyan", S_BAR_END) : "";
+						return `${a}${this.options.map((u, d) => wrapTextWithPrefix(t.output, l(u, d === this.cursor ? "active" : "inactive"), n)).join(`
+`)}
+${s}
+`;
+					}
+				}
+			}
+		}).prompt();
+	};
+	i = `${styleText("gray", S_BAR)}  `;
+	stream = {
+		message: async (e, { symbol: l = styleText("gray", S_BAR) } = {}) => {
+			process.stdout.write(`${styleText("gray", S_BAR)}
+${l}  `);
+			let s = 3;
+			for await (let r of e) {
+				r = r.replace(/\n/g, `
+${i}`), r.includes(`
+`) && (s = 3 + stripVTControlCharacters(r.slice(r.lastIndexOf(`
+`))).length);
+				const o = stripVTControlCharacters(r).length;
+				s + o < process.stdout.columns ? (s += o, process.stdout.write(r)) : (process.stdout.write(`
+${i}${r.trimStart()}`), s = 3 + stripVTControlCharacters(r.trimStart()).length);
+			}
+			process.stdout.write(`
+`);
+		},
+		info: (e) => stream.message(e, { symbol: styleText("blue", S_INFO) }),
+		success: (e) => stream.message(e, { symbol: styleText("green", S_SUCCESS) }),
+		step: (e) => stream.message(e, { symbol: styleText("green", S_STEP_SUBMIT) }),
+		warn: (e) => stream.message(e, { symbol: styleText("yellow", S_WARN) }),
+		/** alias for `log.warn()`. */
+		warning: (e) => stream.warn(e),
+		error: (e) => stream.message(e, { symbol: styleText("red", S_ERROR) })
+	};
+	tasks = async (o, e) => {
+		for (const t of o) {
+			if (t.enabled === false) continue;
+			const s = spinner(e);
+			s.start(t.title);
+			const n = await t.task(s.message);
+			s.stop(n || t.title);
+		}
+	};
+	A = (l) => l.replace(/\x1b\[(?:\d+;)*\d*[ABCDEFGHfJKSTsu]|\x1b\[(s|u)/g, "");
+	taskLog = (l) => {
+		const r = l.output ?? process.stdout, O = getColumns(r), i = styleText("gray", S_BAR), p = l.spacing ?? 1, k = 3, m = l.retainLog === true, d = !isCI() && isTTY(r);
+		r.write(`${i}
+`), r.write(`${styleText("green", S_STEP_SUBMIT)}  ${l.title}
+`);
+		for (let e = 0; e < p; e++) r.write(`${i}
+`);
+		const n = [{
+			value: "",
+			full: ""
+		}];
+		let v = false;
+		const f = (e) => {
+			if (n.length === 0) return;
+			let s = 0;
+			e && (s += p + 2);
+			for (const t of n) {
+				const { value: o, result: a } = t;
+				let g = a?.message ?? o;
+				if (g.length === 0) continue;
+				a === void 0 && t.header !== void 0 && t.header !== "" && (g += `
+${t.header}`);
+				const E = g.split(`
+`).reduce((b, w) => w === "" ? b + 1 : b + Math.ceil((w.length + k) / O), 0);
+				s += E;
+			}
+			s > 0 && (s += 1, r.write(import_src.erase.lines(s)));
+		}, h = (e, s, t) => {
+			const o = t ? `${e.full}
+${e.value}` : e.value;
+			e.header !== void 0 && e.header !== "" && log.message(e.header.split(`
+`).map((a) => styleText("bold", a)), {
+				output: r,
+				secondarySymbol: i,
+				symbol: i,
+				spacing: 0
+			}), log.message(o.split(`
+`).map((a) => styleText("dim", a)), {
+				output: r,
+				secondarySymbol: i,
+				symbol: i,
+				spacing: s ?? p
+			});
+		}, T = () => {
+			for (const e of n) {
+				const { header: s, value: t, full: o } = e;
+				(s === void 0 || s.length === 0) && t.length === 0 || h(e, void 0, m === true && o.length > 0);
+			}
+		}, L = (e, s, t) => {
+			if (f(false), (t?.raw !== true || !v) && e.value !== "" && (e.value += `
+`), e.value += A(s), v = t?.raw === true, l.limit !== void 0) {
+				const o = e.value.split(`
+`), a = o.length - l.limit;
+				if (a > 0) {
+					const g = o.splice(0, a);
+					m && (e.full += (e.full === "" ? "" : `
+`) + g.join(`
+`));
+				}
+				e.value = o.join(`
+`);
+			}
+			d && y();
+		}, y = () => {
+			for (const e of n) e.result ? e.result.status === "error" ? log.error(e.result.message, {
+				output: r,
+				secondarySymbol: i,
+				spacing: 0
+			}) : log.success(e.result.message, {
+				output: r,
+				secondarySymbol: i,
+				spacing: 0
+			}) : e.value !== "" && h(e, 0);
+		}, B = (e, s) => {
+			f(false), e.result = s, d && y();
+		};
+		return {
+			message(e, s) {
+				L(n[0], e, s);
+			},
+			group(e) {
+				const s = {
+					header: e,
+					value: "",
+					full: ""
+				};
+				return n.push(s), {
+					message(t, o) {
+						L(s, t, o);
+					},
+					error(t) {
+						B(s, {
+							status: "error",
+							message: t
+						});
+					},
+					success(t) {
+						B(s, {
+							status: "success",
+							message: t
+						});
+					}
+				};
+			},
+			error(e, s) {
+				f(true), log.error(e, {
+					output: r,
+					secondarySymbol: i,
+					spacing: 1
+				}), s?.showLog !== false && T(), n.splice(1, n.length - 1), n[0].value = "", n[0].full = "";
+			},
+			success(e, s) {
+				f(true), log.success(e, {
+					output: r,
+					secondarySymbol: i,
+					spacing: 1
+				}), s?.showLog === true && T(), n.splice(1, n.length - 1), n[0].value = "", n[0].full = "";
+			}
+		};
+	};
+	text = (e) => new n({
+		validate: e.validate,
+		placeholder: e.placeholder,
+		defaultValue: e.defaultValue,
+		initialValue: e.initialValue,
+		output: e.output,
+		signal: e.signal,
+		input: e.input,
+		render() {
+			const i = e?.withGuide ?? settings.withGuide, s = `${`${i ? `${styleText("gray", S_BAR)}
+` : ""}${symbol(this.state)}  `}${e.message}
+`, c = e.placeholder && e.placeholder.length > 0 ? styleText("inverse", e.placeholder[0]) + styleText("dim", e.placeholder.slice(1)) : styleText(["inverse", "hidden"], "_"), o = this.userInput ? this.userInputWithCursor : c, l = this.value ?? "";
+			switch (this.state) {
+				case "error": {
+					const n = this.error ? `  ${styleText("yellow", this.error)}` : "", r = i ? `${styleText("yellow", S_BAR)}  ` : "", d = i ? styleText("yellow", S_BAR_END) : "";
+					return `${s.trim()}
+${r}${o}
+${d}${n}
+`;
+				}
+				case "submit": {
+					const n = l ? `  ${styleText("dim", l)}` : "";
+					return `${s}${i ? styleText("gray", S_BAR) : ""}${n}`;
+				}
+				case "cancel": {
+					const n = l ? `  ${styleText(["strikethrough", "dim"], l)}` : "", r = i ? styleText("gray", S_BAR) : "";
+					return `${s}${r}${n}${l.trim() ? `
+${r}` : ""}`;
+				}
+				default: return `${s}${i ? `${styleText("cyan", S_BAR)}  ` : ""}${o}
+${i ? styleText("cyan", S_BAR_END) : ""}
+`;
+			}
+		}
+	}).prompt();
+}));
+//#endregion
+//#region src/core/prompt-driver.ts
+/**
+* Real, clack-backed driver. `@clack/prompts` is imported lazily here — never
+* at module top-level — so commands that never take the interactive branch
+* (digest, sync, status, lint) never pay for parsing it. Maps explicitly to
+* clack's own arg shape rather than forwarding opts wholesale, since clack
+* has no notion of our `other` escape hatch.
+*/
+const createClackDriver = async () => {
+	const clack = await Promise.resolve().then(() => (init_dist(), dist_exports));
+	return {
+		text: (opts) => clack.text({
+			message: opts.message,
+			initialValue: opts.initialValue,
+			placeholder: opts.placeholder,
+			validate: opts.validate ? (value) => opts.validate?.(value ?? "") : void 0
+		}),
+		select: (opts) => clack.select({
+			message: opts.message,
+			options: opts.options,
+			initialValue: opts.initialValue
+		}),
+		confirm: (opts) => clack.confirm({
+			message: opts.message,
+			initialValue: opts.initialValue
+		}),
+		isCancel: (value) => clack.isCancel(value)
+	};
+};
+/** Both stdin AND stdout must be TTYs for a session to be interactive. */
+const isInteractiveTty = (stdin = process.stdin, stdout = process.stdout) => Boolean(stdin.isTTY) && Boolean(stdout.isTTY);
+/** Sentinel select value for "not one of the listed options" — never a real
+* answer; runPromptSteps swaps it for a validated free-text follow-up before
+* it ever reaches a caller. */
+const OTHER_VALUE = "__other__";
+const selectOptions = (step) => step.other ? [...step.options, {
+	value: OTHER_VALUE,
+	label: step.other.label
+}] : step.options;
+const askStep = (step, driver) => {
+	switch (step.kind) {
+		case "text": return driver.text(step);
+		case "select": return driver.select({
+			...step,
+			options: selectOptions(step)
+		});
+		case "confirm": return driver.confirm(step);
+	}
+};
+/**
+* Runs each step in order against the driver, stopping the instant one is
+* cancelled. A "select" step declaring `other` that resolves to the escape
+* hatch immediately asks a validated free-text follow-up under the same key.
+*/
+const runPromptSteps = async (steps, driver) => {
+	const answers = {};
+	for (const step of steps) {
+		const answer = await askStep(step, driver);
+		if (driver.isCancel(answer)) return { cancelled: true };
+		if (step.kind === "select" && step.other && answer === OTHER_VALUE) {
+			const custom = await driver.text({
+				message: step.message,
+				validate: step.other.validate
+			});
+			if (driver.isCancel(custom)) return { cancelled: true };
+			answers[step.key] = custom;
+			continue;
+		}
+		answers[step.key] = answer;
+	}
+	return {
+		cancelled: false,
+		answers
+	};
+};
+//#endregion
+//#region src/core/prompts.ts
+const INIT_FIELD_DESC = {
+	dir: "Project directory",
+	commonsUrl: "Commons repo URL",
+	project: "Project name",
+	squads: "Comma-separated squad names",
+	scaffoldCommons: "Scaffold commons repo"
+};
+const PROMOTE_FIELD_DESC = {
+	scope: "Entry scope",
+	type: "Entry type: standard | lesson",
+	name: "Entry name",
+	description: "Short description",
+	author: "Author",
+	date: "Date (YYYY-MM-DD)",
+	bodyFile: "Path to file containing body",
+	overrides: "Override refs",
+	force: "Promote despite near-duplicate matches (does not overwrite an existing entry)"
+};
+const SKILL_ADD_FIELD_DESC = {
+	source: "owner/repo or git URL",
+	skill: "Skill name when the repo has several",
+	ref: "Upstream ref to pin (default: HEAD)",
+	author: "Author (github handle)",
+	date: "Date (YYYY-MM-DD)"
+};
+const SKILL_PROMOTE_FIELD_DESC = {
+	name: "Skill directory name",
+	author: "Author (github handle)",
+	date: "Date (YYYY-MM-DD)"
+};
+/** Only-missing-required in partial mode; every missing field in full guided
+* mode. `anyProvided` is derived from the candidates themselves so callers
+* never hand-maintain a parallel OR-chain. */
+const selectSteps = (candidates) => {
+	const anyProvided = candidates.some((c) => !c.missing);
+	return candidates.filter((c) => c.missing && (!anyProvided || c.required)).map((c) => c.step);
+};
+/** Empty answers "skip" a field back to undefined, matching an omitted flag. */
+const pick = (key, providedValue, answers) => {
+	if (!(key in answers)) return providedValue;
+	const value = String(answers[key]).trim();
+	return value ? value : void 0;
+};
+const validateCommonsUrl = (value) => {
+	const trimmed = value.trim();
+	if (!trimmed) return "must not be empty";
+	return trimmed.includes("://") || trimmed.startsWith("git@") ? void 0 : "must look like a git remote (contains \"://\" or starts with \"git@\")";
+};
+const validateSquads = (value) => {
+	const invalid = value.split(",").map((s) => s.trim()).filter(Boolean).find((s) => !SCOPE_ID_RE.test(s));
+	return invalid ? `"${invalid}" must match ${SCOPE_ID_RULE} (try "${invalid.toLowerCase()}"?)` : void 0;
+};
+const planInitPrompts = (provided, ctx) => selectSteps([
+	{
+		required: true,
+		missing: provided.project === void 0,
+		step: {
+			key: "project",
+			kind: "text",
+			message: INIT_FIELD_DESC.project,
+			initialValue: ctx.defaultProjectName
+		}
+	},
+	{
+		required: true,
+		missing: provided.commonsUrl === void 0,
+		step: {
+			key: "commonsUrl",
+			kind: "text",
+			message: INIT_FIELD_DESC.commonsUrl,
+			initialValue: ctx.defaultCommonsUrl,
+			validate: validateCommonsUrl
+		}
+	},
+	{
+		required: false,
+		missing: provided.squads === void 0,
+		step: {
+			key: "squads",
+			kind: "text",
+			message: INIT_FIELD_DESC.squads,
+			initialValue: ctx.defaultSquads,
+			validate: validateSquads
+		}
+	}
+]);
+const buildInitOptions = (provided, answers) => {
+	const squadsRaw = pick("squads", provided.squads, answers);
+	return {
+		project: pick("project", provided.project, answers),
+		commonsUrl: pick("commonsUrl", provided.commonsUrl, answers),
+		squads: squadsRaw ? splitSquads(squadsRaw) : void 0,
+		scaffoldCommons: "scaffoldCommons" in answers ? answers.scaffoldCommons : provided.scaffoldCommons
+	};
+};
+const validateEntryName = (value) => SCOPE_ID_RE.test(value) ? void 0 : `must match ${SCOPE_ID_RULE}`;
+const validateFileExists = (value) => value && existsSync(path$1.resolve(value)) ? void 0 : "file not found";
+/** Exported so interactive.ts's "other…" free-text follow-up (a scope typed
+* outside the detected-scopes select) reuses the exact same rule. */
+const validateScope = (value) => isValidScope(value) ? void 0 : `must be ${SCOPE_RULE}`;
+const validateDate = (value) => isValidDate(value) ? void 0 : `must be ${DATE_RULE} and a real calendar date`;
+const planPromotePrompts = (provided, ctx) => {
+	const scopeStep = ctx.knownScopes ? {
+		key: "scope",
+		kind: "select",
+		message: PROMOTE_FIELD_DESC.scope,
+		options: ctx.knownScopes.map((s) => ({
+			value: s,
+			label: s
+		})),
+		other: {
+			label: "other…",
+			validate: validateScope
+		}
+	} : {
+		key: "scope",
+		kind: "text",
+		message: PROMOTE_FIELD_DESC.scope,
+		validate: validateScope
+	};
+	return selectSteps([
+		{
+			required: true,
+			missing: provided.scope === void 0,
+			step: scopeStep
+		},
+		{
+			required: true,
+			missing: provided.type === void 0,
+			step: {
+				key: "type",
+				kind: "select",
+				message: PROMOTE_FIELD_DESC.type,
+				options: ENTRY_TYPES.map((t) => ({
+					value: t,
+					label: t
+				}))
+			}
+		},
+		{
+			required: true,
+			missing: provided.name === void 0,
+			step: {
+				key: "name",
+				kind: "text",
+				message: PROMOTE_FIELD_DESC.name,
+				validate: validateEntryName
+			}
+		},
+		{
+			required: true,
+			missing: provided.description === void 0,
+			step: {
+				key: "description",
+				kind: "text",
+				message: PROMOTE_FIELD_DESC.description
+			}
+		},
+		{
+			required: true,
+			missing: provided.author === void 0,
+			step: {
+				key: "author",
+				kind: "text",
+				message: PROMOTE_FIELD_DESC.author,
+				initialValue: ctx.defaultAuthor || void 0
+			}
+		},
+		{
+			required: false,
+			missing: provided.date === void 0,
+			step: {
+				key: "date",
+				kind: "text",
+				message: PROMOTE_FIELD_DESC.date,
+				initialValue: ctx.today,
+				validate: validateDate
+			}
+		},
+		{
+			required: true,
+			missing: provided.bodyFile === void 0,
+			step: {
+				key: "bodyFile",
+				kind: "text",
+				message: PROMOTE_FIELD_DESC.bodyFile,
+				validate: validateFileExists
+			}
+		}
+	]);
+};
+const buildPromoteOptions = (provided, answers) => ({
+	scope: pick("scope", provided.scope, answers),
+	type: pick("type", provided.type, answers),
+	name: pick("name", provided.name, answers),
+	description: pick("description", provided.description, answers),
+	author: pick("author", provided.author, answers),
+	date: pick("date", provided.date, answers),
+	bodyFile: pick("bodyFile", provided.bodyFile, answers)
+});
+const planSkillAddPrompts = (provided, ctx) => selectSteps([
+	{
+		required: true,
+		missing: provided.source === void 0,
+		step: {
+			key: "source",
+			kind: "text",
+			message: SKILL_ADD_FIELD_DESC.source
+		}
+	},
+	{
+		required: false,
+		missing: provided.skill === void 0,
+		step: {
+			key: "skill",
+			kind: "text",
+			message: SKILL_ADD_FIELD_DESC.skill
+		}
+	},
+	{
+		required: false,
+		missing: provided.ref === void 0,
+		step: {
+			key: "ref",
+			kind: "text",
+			message: SKILL_ADD_FIELD_DESC.ref,
+			placeholder: "HEAD"
+		}
+	},
+	{
+		required: true,
+		missing: provided.author === void 0,
+		step: {
+			key: "author",
+			kind: "text",
+			message: SKILL_ADD_FIELD_DESC.author,
+			initialValue: ctx.defaultAuthor || void 0
+		}
+	}
+]);
+const buildSkillAddOptions = (provided, answers) => ({
+	source: pick("source", provided.source, answers),
+	skill: pick("skill", provided.skill, answers),
+	ref: pick("ref", provided.ref, answers),
+	author: pick("author", provided.author, answers)
+});
+const planSkillPromotePrompts = (provided, ctx) => {
+	const nameStep = ctx.personalSkillNames && ctx.personalSkillNames.length > 0 ? {
+		key: "name",
+		kind: "select",
+		message: SKILL_PROMOTE_FIELD_DESC.name,
+		options: ctx.personalSkillNames.map((n) => ({
+			value: n,
+			label: n
+		}))
+	} : {
+		key: "name",
+		kind: "text",
+		message: SKILL_PROMOTE_FIELD_DESC.name
+	};
+	return selectSteps([
+		{
+			required: true,
+			missing: provided.name === void 0,
+			step: nameStep
+		},
+		{
+			required: true,
+			missing: provided.author === void 0,
+			step: {
+				key: "author",
+				kind: "text",
+				message: SKILL_PROMOTE_FIELD_DESC.author,
+				initialValue: ctx.defaultAuthor || void 0
+			}
+		},
+		{
+			required: false,
+			missing: provided.date === void 0,
+			step: {
+				key: "date",
+				kind: "text",
+				message: SKILL_PROMOTE_FIELD_DESC.date,
+				initialValue: ctx.today,
+				validate: validateDate
+			}
+		}
+	]);
+};
+const buildSkillPromoteOptions = (provided, answers) => ({
+	name: pick("name", provided.name, answers),
+	author: pick("author", provided.author, answers),
+	date: pick("date", provided.date, answers)
+});
+/** Best-effort local git identity, used only to pre-fill a prompt default. */
+const resolveDefaultAuthor = async (cwd, runGit = (args) => exec$1("git", args, { cwd })) => {
+	const result = await runGit(["config", "user.name"]);
+	return result.ok ? result.stdout.trim() : "";
+};
+/** The session-scope union for the project bound at `cwd`, or undefined when unbound/invalid. */
+const resolveKnownScopes = async (cwd) => {
+	const configResult = await loadConfig(cwd);
+	return configResult.ok ? sessionScopes({
+		project: configResult.config.project,
+		squads: configResult.config.squads,
+		workspaces: configResult.config.workspaces
+	}) : void 0;
+};
+/** Personal skill directory names under `skillsRoot` that carry a SKILL.md. */
+const listPersonalSkillNames = async (skillsRoot) => {
+	const dirs = (await readdir(skillsRoot, { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory()).map((e) => e.name);
+	return (await Promise.all(dirs.map(async (name) => ({
+		name,
+		hasSkillMd: await exists(path$1.join(skillsRoot, name, "SKILL.md"))
+	})))).filter((d) => d.hasSkillMd).map((d) => d.name).sort();
+};
+//#endregion
+//#region src/core/interactive.ts
+/** Ends a guided flow with a recap of what's about to be submitted + a yes/no
+* gate. `answer === true` already excludes the cancel symbol, so there is
+* nothing further to check. */
+const confirmSummary = async (driver, options) => {
+	const lines = Object.entries(options).filter(([, v]) => v !== void 0 && v !== false).map(([k, v]) => `  ${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+	return await driver.confirm({
+		message: [
+			"About to submit:",
+			...lines,
+			"",
+			"Proceed?"
+		].join("\n"),
+		initialValue: true
+	}) === true;
+};
+/** Prompts for whatever bind fields are still missing, prefilling defaults
+* from an existing binding when `dir` is already bound (rebind becomes an
+* edit flow, not a blind overwrite) — never asks about scaffolding, since by
+* the time this runs the mode is already settled. */
+const resolveBindPrompts = async (provided, driver, dir) => {
+	const configResult = await loadConfig(dir);
+	const existing = configResult.ok ? configResult.config : void 0;
+	const steps = planInitPrompts(provided, {
+		defaultProjectName: existing?.project ?? path$1.basename(path$1.resolve(dir)),
+		defaultCommonsUrl: existing?.commons,
+		defaultSquads: existing?.squads.join(", ")
+	});
+	if (steps.length === 0) return {
+		cancelled: false,
+		options: buildInitOptions(provided, {})
+	};
+	const collected = await runPromptSteps(steps, driver);
+	if (collected.cancelled) return { cancelled: true };
+	return {
+		cancelled: false,
+		options: buildInitOptions(provided, collected.answers)
+	};
+};
+const resolveInitPrompts = async (provided, driver, dir) => {
+	if (provided.scaffoldCommons === true) return {
+		cancelled: false,
+		options: { scaffoldCommons: true }
+	};
+	if (provided.project !== void 0 || provided.commonsUrl !== void 0 || provided.squads !== void 0) return resolveBindPrompts(provided, driver, dir);
+	const mode = await driver.select({
+		message: "How should this directory be set up?",
+		options: [{
+			value: "bind",
+			label: "Bind this project to a Commons"
+		}, {
+			value: "scaffold",
+			label: "Scaffold a new Commons repo"
+		}],
+		initialValue: "bind"
+	});
+	if (driver.isCancel(mode)) return { cancelled: true };
+	if (mode === "scaffold") {
+		const configResult = await loadConfig(dir);
+		if (configResult.ok || configResult.reason !== "missing") {
+			if (await driver.confirm({
+				message: "This directory is a bound project repo — scaffold a Commons here anyway?",
+				initialValue: false
+			}) !== true) return { cancelled: true };
+		}
+		return {
+			cancelled: false,
+			options: { scaffoldCommons: true }
+		};
+	}
+	return resolveBindPrompts(provided, driver, dir);
+};
+const resolvePromotePrompts = async (provided, driver, cwd) => {
+	const needsScope = provided.scope === void 0;
+	const needsAuthor = provided.author === void 0;
+	if (!(needsScope || provided.type === void 0 || provided.name === void 0 || provided.description === void 0 || needsAuthor || provided.bodyFile === void 0)) return {
+		cancelled: false,
+		guided: false,
+		options: provided
+	};
+	const [knownScopes, defaultAuthor] = await Promise.all([needsScope ? resolveKnownScopes(cwd) : void 0, needsAuthor ? resolveDefaultAuthor(cwd) : ""]);
+	const collected = await runPromptSteps(planPromotePrompts(provided, {
+		knownScopes,
+		defaultAuthor,
+		today: todayYMD()
+	}), driver);
+	if (collected.cancelled) return { cancelled: true };
+	const options = buildPromoteOptions(provided, collected.answers);
+	return await confirmSummary(driver, options) ? {
+		cancelled: false,
+		guided: true,
+		options,
+		driver
+	} : { cancelled: true };
+};
+/**
+* Runs the guided promote, and — only for a genuine scope/name collision —
+* offers a single overwrite-confirm retry. Never called for flags-only or
+* non-TTY invocations (cli.ts calls runPromote directly there instead), so
+* this is the only place `overwrite: true` is ever set.
+*/
+const submitPromote = async (input, driver, runPromoteFn = runPromote) => {
+	const result = await runPromoteFn(input);
+	if (result.reason !== "collision") return {
+		cancelled: false,
+		result
+	};
+	if (await driver.confirm({
+		message: `${input.scope}/${input.name} already exists — propose overwriting it?`,
+		initialValue: false
+	}) !== true) return { cancelled: true };
+	return {
+		cancelled: false,
+		result: await runPromoteFn({
+			...input,
+			force: true,
+			overwrite: true
+		})
+	};
+};
+const resolveSkillAddPrompts = async (provided, driver, cwd) => {
+	const needsAuthor = provided.author === void 0;
+	if (!(provided.source === void 0 || needsAuthor)) return {
+		cancelled: false,
+		options: provided
+	};
+	const collected = await runPromptSteps(planSkillAddPrompts(provided, { defaultAuthor: needsAuthor ? await resolveDefaultAuthor(cwd) : "" }), driver);
+	if (collected.cancelled) return { cancelled: true };
+	const options = buildSkillAddOptions(provided, collected.answers);
+	return await confirmSummary(driver, options) ? {
+		cancelled: false,
+		options
+	} : { cancelled: true };
+};
+const resolveSkillPromotePrompts = async (provided, driver, skillsRoot, cwd) => {
+	const needsName = provided.name === void 0;
+	const needsAuthor = provided.author === void 0;
+	if (!needsName && !needsAuthor) return {
+		cancelled: false,
+		options: provided
+	};
+	const [personalSkillNames, defaultAuthor] = await Promise.all([needsName ? listPersonalSkillNames(skillsRoot) : void 0, needsAuthor ? resolveDefaultAuthor(cwd) : ""]);
+	const collected = await runPromptSteps(planSkillPromotePrompts(provided, {
+		personalSkillNames,
+		defaultAuthor,
+		today: todayYMD()
+	}), driver);
+	if (collected.cancelled) return { cancelled: true };
+	const options = buildSkillPromoteOptions(provided, collected.answers);
+	return await confirmSummary(driver, options) ? {
+		cancelled: false,
+		options
+	} : { cancelled: true };
+};
+//#endregion
 //#region src/core/update-check.ts
 const STATE_FILE = "state.json";
 const TWENTY_FOUR_HOURS_MS = 1440 * 60 * 1e3;
@@ -13581,14 +16711,14 @@ const readState = async (statePath) => {
 };
 const writeState = async (statePath, state) => {
 	try {
-		await fs.mkdir(path.dirname(statePath), { recursive: true });
+		await fs.mkdir(path$1.dirname(statePath), { recursive: true });
 		await fs.writeFile(statePath, JSON.stringify(state), "utf8");
 	} catch {}
 };
 const nagMessage = (latest, current) => `roboto-mem ${latest} available (you have v${current}) — run /mem-upgrade`;
 const checkForUpdate = async (input) => {
 	const { home, repoUrl, currentVersion, now, lsRemote } = input;
-	const statePath = path.join(home, STATE_FILE);
+	const statePath = path$1.join(home, STATE_FILE);
 	const state = await readState(statePath);
 	const nowMs = now().getTime();
 	const lastCheckMs = state.lastUpdateCheck ? new Date(state.lastUpdateCheck).getTime() : 0;
@@ -13612,14 +16742,45 @@ const checkForUpdate = async (input) => {
 //#endregion
 //#region src/cli.ts
 const REPO_URL = "https://github.com/robotostudio/roboto-mem";
-const todayYMD = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 const emit = (result) => {
 	if (result.output) process.stdout.write(result.output.endsWith("\n") ? result.output : `${result.output}\n`);
 	process.exitCode = result.exitCode;
 };
-const splitSquads = (raw) => raw.split(",").map((s) => s.trim()).filter(Boolean);
-const validatePromoteType = (raw) => {
-	if (raw === "standard" || raw === "lesson") return raw;
+const reportCancelled = () => {
+	process.stderr.write("Cancelled.\n");
+	process.exitCode = 1;
+};
+/**
+* skill add's SOURCE and skill promote's NAME positionals must be `required:
+* false` in citty so a TTY session can reach the guided prompt for them
+* (citty's own arg-parser throws — before run() ever executes — for a
+* missing `required` positional). But `required: false` ALSO flips citty's
+* own renderUsage() bracket style for that arg from `<NAME>` to `[NAME]`, so
+* showUsage() can no longer reproduce today's non-TTY usage output byte-for-
+* byte on its own. Render it against a display-only clone with that one arg
+* flipped back to required, so the text stays identical to what citty used
+* to print, while the REAL command definition (used for actual parsing)
+* stays permissive. Non-TTY output is otherwise unaffected by this file.
+*/
+const reportMissingPositional = async (cmd, parent, argKey, argName) => {
+	const realArgs = cmd.args;
+	await showUsage({
+		...cmd,
+		args: {
+			...realArgs,
+			[argKey]: {
+				...realArgs[argKey],
+				required: true
+			}
+		}
+	}, parent);
+	process.stderr.write(`\n ERROR  Missing required positional argument: ${argName}\n\n`);
+	process.exitCode = 1;
+};
+const validatePromoteType = (raw) => isEntryType(raw) ? raw : void 0;
+const failTypeError = (raw) => {
+	process.stderr.write(`Error: --type must be "standard" or "lesson", got "${raw}"\n`);
+	process.exitCode = 1;
 };
 const safeNag = async () => {
 	try {
@@ -13628,7 +16789,7 @@ const safeNag = async () => {
 			repoUrl: REPO_URL,
 			currentVersion: VERSION,
 			now: () => /* @__PURE__ */ new Date(),
-			lsRemote: (url) => exec("git", [
+			lsRemote: (url) => exec$1("git", [
 				"ls-remote",
 				"--tags",
 				url
@@ -13647,32 +16808,44 @@ const initCmd = defineCommand({
 		dir: {
 			type: "positional",
 			default: ".",
-			description: "Project directory"
+			description: INIT_FIELD_DESC.dir
 		},
 		"commons-url": {
 			type: "string",
-			description: "Commons repo URL"
+			description: INIT_FIELD_DESC.commonsUrl
 		},
 		project: {
 			type: "string",
-			description: "Project name"
+			description: INIT_FIELD_DESC.project
 		},
 		squads: {
 			type: "string",
-			description: "Comma-separated squad names"
+			description: INIT_FIELD_DESC.squads
 		},
 		commons: {
 			type: "boolean",
-			description: "Scaffold commons repo"
+			description: INIT_FIELD_DESC.scaffoldCommons
 		}
 	},
 	async run({ args }) {
-		emit(await runInit({
-			dir: args.dir,
-			commonsUrl: args["commons-url"],
+		const dir = args.dir;
+		const provided = {
 			project: args.project,
-			squads: args.squads ? splitSquads(args.squads) : void 0,
+			commonsUrl: args["commons-url"],
+			squads: args.squads,
 			scaffoldCommons: args.commons
+		};
+		const filled = isInteractiveTty() ? await resolveInitPrompts(provided, await createClackDriver(), dir) : {
+			cancelled: false,
+			options: buildInitOptions(provided, {})
+		};
+		if (filled.cancelled) {
+			reportCancelled();
+			return;
+		}
+		emit(await runInit({
+			dir,
+			...filled.options
 		}));
 	}
 });
@@ -13723,51 +16896,80 @@ const promoteCmd = defineCommand({
 	args: {
 		scope: {
 			type: "string",
-			description: "Entry scope"
+			description: PROMOTE_FIELD_DESC.scope
 		},
 		type: {
 			type: "string",
-			description: "Entry type: standard | lesson"
+			description: PROMOTE_FIELD_DESC.type
 		},
 		name: {
 			type: "string",
-			description: "Entry name"
+			description: PROMOTE_FIELD_DESC.name
 		},
 		description: {
 			type: "string",
-			description: "Short description"
+			description: PROMOTE_FIELD_DESC.description
 		},
 		author: {
 			type: "string",
-			description: "Author"
+			description: PROMOTE_FIELD_DESC.author
 		},
 		date: {
 			type: "string",
-			description: "Date (YYYY-MM-DD)"
+			description: PROMOTE_FIELD_DESC.date
 		},
 		"body-file": {
 			type: "string",
-			description: "Path to file containing body"
+			description: PROMOTE_FIELD_DESC.bodyFile
 		},
 		overrides: {
 			type: "string",
-			description: "Override refs"
+			description: PROMOTE_FIELD_DESC.overrides
 		},
 		force: {
 			type: "boolean",
-			description: "Overwrite existing entry"
+			description: PROMOTE_FIELD_DESC.force
 		}
 	},
 	async run({ args }) {
-		const rawType = args.type ?? "";
-		const resolvedType = validatePromoteType(rawType);
-		if (!resolvedType) {
-			process.stderr.write(`Error: --type must be "standard" or "lesson", got "${rawType}"\n`);
-			process.exitCode = 1;
+		const provided = {
+			scope: args.scope,
+			type: args.type,
+			name: args.name,
+			description: args.description,
+			author: args.author,
+			date: args.date,
+			bodyFile: args["body-file"]
+		};
+		if (provided.type !== void 0 && !validatePromoteType(provided.type)) {
+			failTypeError(provided.type);
 			return;
 		}
-		const bodyFile = args["body-file"];
-		const bodyResult = bodyFile ? await fs.readFile(path.resolve(bodyFile), "utf8").then((text) => ({
+		if (provided.bodyFile !== void 0) {
+			if (!await access(path$1.resolve(provided.bodyFile)).then(() => true, () => false)) {
+				process.stderr.write(`Error: cannot read --body-file "${provided.bodyFile}"\n`);
+				process.exitCode = 1;
+				return;
+			}
+		}
+		const driver = isInteractiveTty() ? await createClackDriver() : void 0;
+		const filled = driver ? await resolvePromotePrompts(provided, driver, process.cwd()) : {
+			cancelled: false,
+			guided: false,
+			options: provided
+		};
+		if (filled.cancelled) {
+			reportCancelled();
+			return;
+		}
+		const { options } = filled;
+		const resolvedType = validatePromoteType(options.type ?? "");
+		if (!resolvedType) {
+			failTypeError(options.type ?? "");
+			return;
+		}
+		const bodyFile = options.bodyFile;
+		const bodyResult = bodyFile ? await readFile(path$1.resolve(bodyFile), "utf8").then((text) => ({
 			ok: true,
 			text
 		})).catch(() => ({ ok: false })) : {
@@ -13780,18 +16982,28 @@ const promoteCmd = defineCommand({
 			return;
 		}
 		const body = bodyResult.text;
-		emit(await runPromote({
+		const promoteInput = {
 			cwd: process.cwd(),
-			scope: args.scope ?? "",
+			scope: options.scope ?? "",
 			type: resolvedType,
-			name: args.name ?? "",
-			description: args.description ?? "",
+			name: options.name ?? "",
+			description: options.description ?? "",
 			body,
-			author: args.author ?? "",
-			date: args.date ?? todayYMD(),
+			author: options.author ?? "",
+			date: options.date ?? todayYMD(),
 			overrides: args.overrides,
 			force: Boolean(args.force)
-		}));
+		};
+		if (!filled.guided) {
+			emit(await runPromote(promoteInput));
+			return;
+		}
+		const submitted = await submitPromote(promoteInput, filled.driver);
+		if (submitted.cancelled) {
+			reportCancelled();
+			return;
+		}
+		emit(submitted.result);
 	}
 });
 const lintCmd = defineCommand({
@@ -13818,78 +17030,117 @@ const statusCmd = defineCommand({
 		emit(await runStatus({ cwd: process.cwd() }));
 	}
 });
+const skillAddCmd = defineCommand({
+	meta: {
+		name: "add",
+		description: "Vendor a skill from GitHub/skills.sh into the commons (opens a PR)"
+	},
+	args: {
+		source: {
+			type: "positional",
+			description: SKILL_ADD_FIELD_DESC.source,
+			required: false
+		},
+		skill: {
+			type: "string",
+			description: SKILL_ADD_FIELD_DESC.skill
+		},
+		ref: {
+			type: "string",
+			description: SKILL_ADD_FIELD_DESC.ref
+		},
+		author: {
+			type: "string",
+			description: SKILL_ADD_FIELD_DESC.author
+		},
+		date: {
+			type: "string",
+			description: SKILL_ADD_FIELD_DESC.date
+		}
+	},
+	async run({ args }) {
+		const provided = {
+			source: args.source,
+			skill: args.skill,
+			ref: args.ref,
+			author: args.author
+		};
+		if (!provided.source && !isInteractiveTty()) {
+			await reportMissingPositional(skillAddCmd, skillCmd, "source", "SOURCE");
+			return;
+		}
+		const filled = isInteractiveTty() ? await resolveSkillAddPrompts(provided, await createClackDriver(), process.cwd()) : {
+			cancelled: false,
+			options: provided
+		};
+		if (filled.cancelled) {
+			reportCancelled();
+			return;
+		}
+		emit(await runSkillAdd({
+			cwd: process.cwd(),
+			source: filled.options.source ?? "",
+			skill: filled.options.skill,
+			ref: filled.options.ref,
+			author: filled.options.author ?? "",
+			date: args.date ?? todayYMD()
+		}));
+	}
+});
+const skillPromoteCmd = defineCommand({
+	meta: {
+		name: "promote",
+		description: "Promote a personal skill (~/.claude/skills/<name>) into the commons (opens a PR)"
+	},
+	args: {
+		name: {
+			type: "positional",
+			description: SKILL_PROMOTE_FIELD_DESC.name,
+			required: false
+		},
+		author: {
+			type: "string",
+			description: SKILL_PROMOTE_FIELD_DESC.author
+		},
+		date: {
+			type: "string",
+			description: SKILL_PROMOTE_FIELD_DESC.date
+		}
+	},
+	async run({ args }) {
+		const provided = {
+			name: args.name,
+			author: args.author,
+			date: args.date
+		};
+		if (!provided.name && !isInteractiveTty()) {
+			await reportMissingPositional(skillPromoteCmd, skillCmd, "name", "NAME");
+			return;
+		}
+		const filled = isInteractiveTty() ? await resolveSkillPromotePrompts(provided, await createClackDriver(), defaultSkillsTarget(), process.cwd()) : {
+			cancelled: false,
+			options: provided
+		};
+		if (filled.cancelled) {
+			reportCancelled();
+			return;
+		}
+		emit(await runSkillPromote({
+			cwd: process.cwd(),
+			name: filled.options.name ?? "",
+			author: filled.options.author ?? "",
+			date: filled.options.date ?? todayYMD()
+		}));
+	}
+});
 const skillCmd = defineCommand({
 	meta: {
 		name: "skill",
 		description: "Team Skills: vendor or promote skills into the commons"
 	},
 	subCommands: {
-		add: defineCommand({
-			meta: {
-				name: "add",
-				description: "Vendor a skill from GitHub/skills.sh into the commons (opens a PR)"
-			},
-			args: {
-				source: {
-					type: "positional",
-					description: "owner/repo or git URL"
-				},
-				skill: {
-					type: "string",
-					description: "Skill name when the repo has several"
-				},
-				ref: {
-					type: "string",
-					description: "Upstream ref to pin (default: HEAD)"
-				},
-				author: {
-					type: "string",
-					description: "Author (github handle)"
-				},
-				date: {
-					type: "string",
-					description: "Date (YYYY-MM-DD)"
-				}
-			},
-			async run({ args }) {
-				emit(await runSkillAdd({
-					cwd: process.cwd(),
-					source: args.source ?? "",
-					skill: args.skill,
-					ref: args.ref,
-					author: args.author ?? "",
-					date: args.date ?? todayYMD()
-				}));
-			}
-		}),
-		promote: defineCommand({
-			meta: {
-				name: "promote",
-				description: "Promote a personal skill (~/.claude/skills/<name>) into the commons (opens a PR)"
-			},
-			args: {
-				name: {
-					type: "positional",
-					description: "Skill directory name"
-				},
-				author: {
-					type: "string",
-					description: "Author (github handle)"
-				},
-				date: {
-					type: "string",
-					description: "Date (YYYY-MM-DD)"
-				}
-			},
-			async run({ args }) {
-				emit(await runSkillPromote({
-					cwd: process.cwd(),
-					name: args.name ?? "",
-					author: args.author ?? "",
-					date: args.date ?? todayYMD()
-				}));
-			}
-		})
+		add: skillAddCmd,
+		promote: skillPromoteCmd
 	}
 });
 const main = defineCommand({
@@ -13916,13 +17167,13 @@ if ((() => {
 			try {
 				return realpathSync(p);
 			} catch {
-				return path.resolve(p);
+				return path$1.resolve(p);
 			}
 		};
-		return real(path.resolve(argv1)) === real(fileURLToPath(import.meta.url));
+		return real(path$1.resolve(argv1)) === real(fileURLToPath(import.meta.url));
 	} catch {
 		return false;
 	}
 })()) runMain(main);
 //#endregion
-export { main, splitSquads, validatePromoteType };
+export { main, validatePromoteType };

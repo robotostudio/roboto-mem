@@ -410,6 +410,55 @@ describe("promote command", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // 5b. Exact collision + overwrite:true (interactive-only field, no CLI flag)
+  //     succeeds — gate 4a is bypassed and the branch reaches the remote.
+  // ---------------------------------------------------------------------------
+  it("exact collision: overwrite:true bypasses the gate and pushes the replacement", async () => {
+    const tmp = await makeDir();
+    const fixture = await makeCommonsFixture(tmp);
+
+    const cwd = await makeDir();
+    await saveConfig(cwd, { ...VALID_CONFIG, commons: fixture.remoteUrl });
+
+    const home = await makeDir();
+    const ghStub = async (): Promise<ExecResult> => ({
+      ok: true,
+      stdout: "https://example.com/pr/1",
+    });
+
+    const result = await runPromote({
+      cwd,
+      scope: "stack/sanity",
+      type: "lesson",
+      name: "typegen-flag",
+      description: "Updated description",
+      body: "Updated body content.",
+      author: "hrithik",
+      date: "2026-06-12",
+      home,
+      ghRunner: ghStub,
+      force: true,
+      overwrite: true,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).not.toContain("already exists");
+    expect(result.output).toContain("promote/stack-sanity-typegen-flag");
+
+    const lsRemote = await exec("git", [
+      "ls-remote",
+      fixture.remoteUrl,
+      "refs/heads/promote/stack-sanity-typegen-flag",
+    ]);
+    expect(lsRemote.ok).toBe(true);
+    if (lsRemote.ok) {
+      expect(lsRemote.stdout).toMatch(
+        /refs\/heads\/promote\/stack-sanity-typegen-flag/,
+      );
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // 6. Invalid scope: exit 1 before any clone; home/repos does not exist
   // ---------------------------------------------------------------------------
   it("invalid scope: exits 1 before any clone", async () => {
@@ -442,6 +491,53 @@ describe("promote command", () => {
       .then(() => true)
       .catch(() => false);
     expect(reposExists).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6a. Invalid date (calendar validity, not just format): DATE_RE alone
+  //     accepted nonsense like "2026-13-99" — isValidDate additionally
+  //     requires the date to actually exist. Gate 1, so exits before any clone.
+  // ---------------------------------------------------------------------------
+  it("invalid date: month out of range (2026-13-99) exits 1 before any clone", async () => {
+    const cwd = await makeDir();
+    const home = await makeDir();
+
+    const result = await runPromote({
+      cwd,
+      scope: "org",
+      type: "standard",
+      name: "some-entry",
+      description: "Some description",
+      body: "Some body",
+      author: "hrithik",
+      date: "2026-13-99",
+      home,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toMatch(/date/i);
+    expect(result.output).toMatch(/calendar/i);
+  });
+
+  it("invalid date: day out of range for the month (2026-02-30) exits 1 before any clone", async () => {
+    const cwd = await makeDir();
+    const home = await makeDir();
+
+    const result = await runPromote({
+      cwd,
+      scope: "org",
+      type: "standard",
+      name: "some-entry",
+      description: "Some description",
+      body: "Some body",
+      author: "hrithik",
+      date: "2026-02-30",
+      home,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toMatch(/date/i);
+    expect(result.output).toMatch(/calendar/i);
   });
 
   // ---------------------------------------------------------------------------

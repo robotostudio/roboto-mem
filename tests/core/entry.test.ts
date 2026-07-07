@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  DATE_RE,
   entryPathForScope,
+  isValidDate,
   parseEntry,
   scopeFromPath,
   serializeEntry,
+  todayYMD,
 } from "../../src/core/entry.js";
 
 const STACK_FILE = "entries/stacks/sanity/typegen.md";
@@ -241,5 +244,43 @@ describe("entryPathForScope — round-trip with scopeFromPath", () => {
     for (const scope of scopes) {
       expect(scopeFromPath(entryPathForScope(scope, "some-name"))).toBe(scope);
     }
+  });
+});
+
+describe("todayYMD", () => {
+  it("returns a DATE_RE-matching YYYY-MM-DD string", () => {
+    expect(todayYMD()).toMatch(DATE_RE);
+  });
+});
+
+describe("isValidDate", () => {
+  it("rejects a month out of range", () => {
+    expect(isValidDate("2026-13-99")).toBe(false);
+  });
+
+  it("rejects a day out of range for the given month", () => {
+    expect(isValidDate("2026-02-30")).toBe(false);
+  });
+
+  it("rejects Feb 29 in a non-leap year", () => {
+    expect(isValidDate("2026-02-29")).toBe(false);
+  });
+
+  it("accepts Feb 29 in a leap year", () => {
+    expect(isValidDate("2028-02-29")).toBe(true);
+  });
+
+  it("accepts a normal valid date", () => {
+    expect(isValidDate("2026-07-06")).toBe(true);
+  });
+
+  it("accepts today's date", () => {
+    expect(isValidDate(todayYMD())).toBe(true);
+  });
+
+  it("rejects anything that fails DATE_RE's format first", () => {
+    expect(isValidDate("07/06/2026")).toBe(false);
+    expect(isValidDate("not-a-date")).toBe(false);
+    expect(isValidDate("")).toBe(false);
   });
 });

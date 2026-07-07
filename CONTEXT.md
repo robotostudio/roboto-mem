@@ -75,6 +75,10 @@ _Avoid_: update (ambiguous)
 The explicit act of moving a committed artifact (a scope config, the Team Memory repo format) to a newer schema version, always landing as a reviewable diff. Never a side effect of Upgrade or Sync.
 _Avoid_: auto-migrate
 
+**Interactive Mode**:
+A flag-taking command run in a terminal collects its missing inputs by prompting, showing each flag's purpose inline. Flags always win over prompts; non-TTY runs (hooks, CI, scripts) never prompt and behave exactly as scripted.
+_Avoid_: TUI, wizard, interactive suite, guided mode
+
 ## Example dialogue
 
 > **Dev**: My Claude figured out that our Sanity client breaks with the new TypeGen flag. Should I add that to the standards?

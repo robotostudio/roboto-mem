@@ -6,10 +6,18 @@ export interface SessionScopeInput {
 
 const PREFIXED_RE = /^(squad|stack|project)\/([a-z0-9][a-z0-9-]*)$/;
 
-export const SCOPE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+/** Human-readable rule text — single source for both promote's gate-1 error
+ * and the interactive scope prompt's validator. */
+export const SCOPE_RULE = "org, squad/<s>, stack/<k>, or project/<p>";
 
 export const isValidScope = (scope: string): boolean =>
   scope === "org" || PREFIXED_RE.test(scope);
+
+/** Human-readable rule text — single source for both promote's gate-1 error
+ * and the interactive name/scope prompts' validators. */
+export const SCOPE_ID_RULE = "/^[a-z0-9][a-z0-9-]*$/";
+
+export const SCOPE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export const sessionScopes = (input: SessionScopeInput): string[] => {
   const sortedSquads = [...input.squads]
@@ -29,3 +37,9 @@ export const sessionScopes = (input: SessionScopeInput): string[] => {
 
 export const entryApplies = (entryScope: string, scopes: string[]): boolean =>
   scopes.includes(entryScope);
+
+export const splitSquads = (raw: string): string[] =>
+  raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
