@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { buildCliInto, rawRun } from "../helpers/cli-runner.js";
+import {
+  buildCliInto,
+  normalizeCliOutput,
+  rawRun,
+} from "../helpers/cli-runner.js";
 import { tmpDirFactory } from "../helpers/tmp.js";
 
 // Interactive Mode must never change non-TTY behaviour (ADR 0008). rawRun
@@ -100,10 +104,10 @@ describe("interactive mode: non-TTY parity through the real cli.ts wiring", () =
     const dir = await tmp.make();
     const result = await rawRun([cliPath.current, "skill", "add"], dir);
     expect(result.code).toBe(1);
-    expect(result.stdout).toBe(
+    expect(normalizeCliOutput(result.stdout)).toBe(
       "Vendor a skill from GitHub/skills.sh into the commons (opens a PR) (skill add)\n\nUSAGE skill add [OPTIONS] <SOURCE>\n\nARGUMENTS\n\n  SOURCE    owner/repo or git URL    \n\nOPTIONS\n\n   --skill    Skill name when the repo has several\n     --ref    Upstream ref to pin (default: HEAD) \n  --author    Author (github handle)              \n    --date    Date (YYYY-MM-DD)                   \n\n\n",
     );
-    expect(result.stderr).toBe(
+    expect(normalizeCliOutput(result.stderr)).toBe(
       "\n ERROR  Missing required positional argument: SOURCE\n\n",
     );
   });
@@ -122,10 +126,10 @@ describe("interactive mode: non-TTY parity through the real cli.ts wiring", () =
     const dir = await tmp.make();
     const result = await rawRun([cliPath.current, "skill", "promote"], dir);
     expect(result.code).toBe(1);
-    expect(result.stdout).toBe(
+    expect(normalizeCliOutput(result.stdout)).toBe(
       "Promote a personal skill (~/.claude/skills/<name>) into the commons (opens a PR) (skill promote)\n\nUSAGE skill promote [OPTIONS] <NAME>\n\nARGUMENTS\n\n  NAME    Skill directory name    \n\nOPTIONS\n\n  --author    Author (github handle)\n    --date    Date (YYYY-MM-DD)     \n\n\n",
     );
-    expect(result.stderr).toBe(
+    expect(normalizeCliOutput(result.stderr)).toBe(
       "\n ERROR  Missing required positional argument: NAME\n\n",
     );
   });
@@ -144,6 +148,6 @@ describe("interactive mode: non-TTY parity through the real cli.ts wiring", () =
     const dir = await tmp.make();
     const result = await rawRun([cliPath.current, "digest", "--hook"], dir);
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("");
+    expect(normalizeCliOutput(result.stdout)).toBe("");
   });
 }, 90_000);

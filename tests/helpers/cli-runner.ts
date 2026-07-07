@@ -13,14 +13,20 @@ export interface RawRun {
 // citty prints --version/usage via consola, which writes to stderr; our exec
 // wrapper drops stderr on success. Capture both streams raw for these tests.
 // Vitest sets NODE_ENV=test and TEST=true; either alone silences consola
-// (citty's --version/usage printer) in the child. Strip the test-env family
-// so the artifact behaves like production.
+// (citty's --version/usage printer) in the child. CI=true/GITHUB_ACTIONS flip
+// consola to its `[log]`-prefixed markdown reporter with ANSI styling. Strip
+// the whole detection family and force NO_COLOR so the artifact renders the
+// same on a laptop and in Actions.
 export const rawRun = (args: string[], cwd: string): Promise<RawRun> => {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(
-      ([k]) => !["NODE_ENV", "TEST", "VITEST"].includes(k),
+  const env = {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([k]) =>
+          !["NODE_ENV", "TEST", "VITEST", "CI", "GITHUB_ACTIONS"].includes(k),
+      ),
     ),
-  );
+    NO_COLOR: "1",
+  };
   return new Promise((resolve) => {
     execFile(
       "node",
@@ -35,6 +41,18 @@ export const rawRun = (args: string[], cwd: string): Promise<RawRun> => {
     );
   });
 };
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI styling means matching ESC by definition
+const ANSI_RE = /\u001b\[[0-9;]*m/g;
+
+/** Collapses consola's env-dependent rendering (ANSI codes, markdown
+ * backticks, `[log] ` prefixes) so usage-text assertions compare content,
+ * not whichever reporter consola picked for the environment. */
+export const normalizeCliOutput = (s: string): string =>
+  s
+    .replace(ANSI_RE, "")
+    .replace(/^\[log\] /gm, "")
+    .replaceAll("`", "");
 
 /** Builds the real CLI via the repo's own tsdown config into `outDir`,
  * returning the path to the resulting cli.mjs. */
