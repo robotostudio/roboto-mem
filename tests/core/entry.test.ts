@@ -165,6 +165,101 @@ body`;
   });
 });
 
+// 8b. Global library model (Phase 2): flat entries (no legacy scope
+// directory) take their scope from frontmatter — absent = untagged/global,
+// `library:{name}` = library-scoped. See
+// docs/design-specs/2026-07-17-global-library-model.md.
+const FLAT_FILE = "entries/decision-framework.md";
+
+describe("parseEntry — flat entry (global library model)", () => {
+  it("returns ok:true with scope undefined when frontmatter has no scope key (untagged = global)", () => {
+    const raw = `---
+description: How we make decisions
+type: standard
+author: hrithik
+date: 2026-07-17
+---
+Body of the decision framework.`;
+    const result = parseEntry(raw, FLAT_FILE);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.entry.scope).toBeUndefined();
+    expect(result.entry.name).toBe("decision-framework");
+  });
+
+  it("returns ok:true with scope library:resend when frontmatter declares it", () => {
+    const raw = `---
+description: Email templates for Resend
+type: standard
+author: team
+date: 2026-07-17
+scope: library:resend
+---
+Body.`;
+    const result = parseEntry(raw, "entries/resend-email-templates.md");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.entry.scope).toBe("library:resend");
+  });
+
+  it("returns ok:false when scope is a legacy token (org) on a flat path", () => {
+    const raw = `---
+description: something
+type: standard
+author: hrithik
+date: 2026-01-01
+scope: org
+---
+body`;
+    const result = parseEntry(raw, FLAT_FILE);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.toLowerCase()).toContain("library:");
+  });
+
+  it("returns ok:false when scope is malformed (uppercase library name)", () => {
+    const raw = `---
+description: something
+type: standard
+author: hrithik
+date: 2026-01-01
+scope: library:Resend
+---
+body`;
+    const result = parseEntry(raw, FLAT_FILE);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.toLowerCase()).toContain("library:");
+  });
+
+  it("returns ok:false when scope is library: with no name", () => {
+    const raw = `---
+description: something
+type: standard
+author: hrithik
+date: 2026-01-01
+scope: "library:"
+---
+body`;
+    const result = parseEntry(raw, FLAT_FILE);
+    expect(result.ok).toBe(false);
+  });
+
+  it("returns ok:false for a nested non-legacy path (entries/weird/x.md) regardless of frontmatter — unchanged", () => {
+    const raw = `---
+description: something
+type: standard
+author: hrithik
+date: 2026-01-01
+---
+body`;
+    const result = parseEntry(raw, "entries/weird/nested/x.md");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.toLowerCase()).toContain("scope");
+  });
+});
+
 // 9. No frontmatter at all
 describe("parseEntry — no frontmatter", () => {
   it("returns ok:false when raw does not start with ---", () => {
@@ -202,6 +297,50 @@ describe("serializeEntry — roundtrip", () => {
     if (!first.ok) return;
     const serialized = serializeEntry(first.entry);
     const second = parseEntry(serialized, STACK_FILE);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.entry).toEqual(first.entry);
+  });
+});
+
+// 11b. serializeEntry — flat entry roundtrip (global library model). Scope
+// isn't derivable from a flat path, so serializeEntry must write it back
+// into frontmatter; untagged flat entries must NOT gain a spurious scope key.
+describe("serializeEntry — flat entry roundtrip", () => {
+  it("roundtrips a library-scoped flat entry, preserving scope", () => {
+    const raw = `---
+description: Email templates for Resend
+type: standard
+author: team
+date: 2026-07-17
+scope: library:resend
+---
+Body.`;
+    const first = parseEntry(raw, "entries/resend-email-templates.md");
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const serialized = serializeEntry(first.entry);
+    expect(serialized).toContain("scope: library:resend");
+    const second = parseEntry(serialized, "entries/resend-email-templates.md");
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.entry).toEqual(first.entry);
+  });
+
+  it("roundtrips an untagged flat entry without writing a scope key", () => {
+    const raw = `---
+description: How we make decisions
+type: standard
+author: hrithik
+date: 2026-07-17
+---
+Body of the decision framework.`;
+    const first = parseEntry(raw, FLAT_FILE);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const serialized = serializeEntry(first.entry);
+    expect(serialized).not.toContain("scope:");
+    const second = parseEntry(serialized, FLAT_FILE);
     expect(second.ok).toBe(true);
     if (!second.ok) return;
     expect(second.entry).toEqual(first.entry);

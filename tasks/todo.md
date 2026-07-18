@@ -276,3 +276,322 @@ resolver layer — only reachability from cli.ts was); true pty-level
 end-to-end confirmation is the separate pty harness agent's job.
 Gates: typecheck/lint/test/build all green; single dist/cli.mjs
 (629,629 B; cold-start unchanged at ~0.04s).
+
+## Global Library Model — Phase 1 (Schema & Infrastructure)
+
+Spec: docs/design-specs/2026-07-17-global-library-model.md. Phase 1 is
+schema + infra only — NOT wired into the live runtime path yet.
+CONFIG_VERSION/FORMAT_VERSION stay at 1 (bump is explicitly Phase 2).
+
+Key design resolution: since CONFIG_VERSION stays 1, the current
+`loadConfig`/`validateConfig` (v1, used by digest.ts/sync.ts/etc.) must
+stay behaviorally IDENTICAL — any `configVersion: 2` config still hits the
+existing `newer-config` gate before v1 field validation runs. The new v2
+schema/validator is a parallel, self-contained code path (`loadConfigV2`,
+not wired into `loadConfig`) so it's fully testable now without disturbing
+the live command flow. Phase 2 will bump CONFIG_VERSION and splice this in.
+
+- [ ] Refactor `loadConfig`'s file-read/parse logic into a shared
+      `readConfigFile(dir, fileName)` helper (zero behavior change to v1;
+      dedupes 3x repetition once v2 + global loaders are added)
+- [ ] Add `RepoConfigV2` (`configVersion:2`, `commons: string`,
+      `libraries: string[]`), `ConfigV2Result`, `CONFIG_VERSION_V2=2`,
+      `LEGACY_V1_FIELDS`, `CONFIG_V1_DEPRECATED_MESSAGE`,
+      `CONFIG_LEGACY_FIELDS_MESSAGE`
+- [ ] Add private `validateConfigV2` + exported `loadConfigV2(dir)`
+      (mirrors `validateConfig`/`loadConfig`, unexported validator per
+      existing convention)
+- [ ] Add `GlobalConfig` (`commons?: string`), `GlobalConfigResult`,
+      `GLOBAL_CONFIG_FILE`, `globalConfigHome()`, `loadGlobalConfig(home)`
+      for `~/.config/roboto-mem/config.json` (init-only defaults, Phase 3
+      consumer)
+- [ ] RED tests first in tests/core/config.test.ts: v2 valid/invalid
+      shapes, v1-deprecated fixture, hybrid (v2+legacy-fields) fixture x2,
+      configVersion newer-than-2, global config suite, precedence/silence
+      regression, v1 loadConfig-vs-v2-shape backward-compat regression
+- [ ] Add `repoDirFor` direct unit test in memory-repo.test.ts (sha256-12
+      hash scheme currently only exercised indirectly)
+- [ ] Add digest.test.ts coverage for a REAL v2-shaped project config
+      (configVersion 2 + commons + libraries) hitting stale-cache+nag,
+      mirroring the existing newer-format pair of tests
+- [ ] typecheck + lint + full suite + coverage; /simplify pass; report
+
+Explicitly OUT of scope for Phase 1 (do not touch): CONFIG_VERSION bump,
+FORMAT_VERSION bump, entry.ts scope: frontmatter, scopes.ts library
+filtering, digest.ts/scopes.ts wiring, init/sync/migrate commands.
+
+### Review — Phase 1 shipped
+
+All checklist items done. src/core/config.ts: refactored the v1
+loadConfig's file-read/parse into a shared `readConfigFile(dir, fileName)`
+(byte-identical detail strings preserved — verified against every existing
+v1 test, none needed changing); added the v2 schema (RepoConfigV2,
+ConfigV2Result, CONFIG_VERSION_V2=2, LEGACY_V1_FIELDS,
+CONFIG_V1_DEPRECATED_MESSAGE, CONFIG_LEGACY_FIELDS_MESSAGE) + private
+validateConfigV2 + exported loadConfigV2(dir) as a parallel, self-contained
+path — NOT spliced into loadConfig, since CONFIG_VERSION stays 1 this
+phase and any configVersion:2 file must keep hitting the pre-existing
+newer-config gate (verified via new regression test, zero digest.ts/
+memory-repo.ts changes needed). Added GlobalConfig/GlobalConfigResult/
+loadGlobalConfig/globalConfigHome for `~/.config/roboto-mem/config.json`
+(init-only suggested defaults, Phase 3 consumer) with an
+ROBOTO_MEM_CONFIG_HOME env override mirroring memoryHome()'s pattern.
+
+Key design resolution confirmed correct: "project override, global
+init-only, silence" precedence needed no merge function — loadConfig/
+loadConfigV2 simply never reference the global path, proven by an explicit
+test (populated global config sitting next to a missing project config
+still returns reason:"missing"). validateConfigV2 discriminates
+configVersion 1 ("v1 deprecated, run migrate") from configVersion 2 +
+legacy fields present ("hybrid, hand-edited, remove them") using the exact
+message strings from the spec (asserted via toBe, not just toContain).
+
+Tests: 368 -> 396 (+28: config.test.ts +23 — v2 valid/minimal/defaults,
+invalid commons/libraries/configVersion, configVersion 0 edge case,
+newer-config at 3, v1-deprecated fixture, hybrid fixture x2 (all-4-fields
+and single-field), EISDIR, bad JSON, non-object JSON (closed a
+pre-existing tryParseJson gap), global config suite x4, precedence/silence
+x2, globalConfigHome x2, backward-compat regression (real v2 shape into
+v1 loadConfig -> newer-config); memory-repo.test.ts +3 (repoDirFor:
+sha256-12 hash scheme had zero direct coverage before — only exercised
+indirectly through ensureRepo); digest.test.ts +2 (v2-shaped project
+config -> stale-cache+nag end-to-end, mirroring the existing newer-format
+pair — this was the literal "verify old CLI behavior" gap, now closed).
+
+Coverage: config.ts 92.15%->96.47% lines (only pre-existing v1 gaps at
+lines 36/64/76 remain — configVersion-not-number/project-not-string/
+workspaces-not-object detail branches were never covered before my
+changes either; left alone, out of Phase 1 scope). Repo-wide: 93.58% ->
+93.87% lines, all thresholds (80%) cleared by a wide margin.
+
+Simplify pass: merged the "configVersion===1" and "configVersion!==2"
+branches into one guard with a ternary detail message; replaced
+validateGlobalConfig's redundant ternary with a direct `as string |
+undefined` cast (type already narrowed by the preceding guard). Did NOT
+genericize ConfigResult/ConfigV2Result into a shared parametrized type —
+only 2 occurrences (below the 3+ dedupe threshold) and every other
+`*Load`/`*Result` union in this codebase (MemoryLoad, DigestMeta, etc.) is
+its own concrete named type, not a shared generic — matching that
+precedent over introducing a new abstraction.
+
+Gates: typecheck/lint/test/build all green (396/396). Reverted
+dist/cli.mjs after a verification build — Phase 1 is source+tests only,
+no release intended. RepoConfig (v1) and CONFIG_VERSION untouched at the
+type/value level, so init.ts/sync.ts/digest.ts/status.ts/etc. compile and
+behave identically to before — confirmed via full untargeted typecheck
+and test run, not just the touched files.
+
+## Global Library Model — Phase 4 (Sync & Promotion)
+
+Spec: docs/design-specs/2026-07-17-global-library-model.md, "Sync &
+Promotion" section + Phase 4 checklist. Builds on Phase 1's `loadConfigV2`
+(config.ts) and the already-shipped `src/core/dir-diff.ts` (diffDirs/
+formatDirDiff/isDirDiffEmpty — built ahead of time explicitly for this
+phase's collision-confirm + promote-PR-body use). CONFIG_VERSION (v1)
+stays at 1 — v1 projects/commons must keep working unchanged (task's
+explicit backward-compat requirement); v2 is opt-in via `loadConfigV2`
+succeeding.
+
+Found via direct spec re-read (not the task paraphrase): no ancestor-
+directory config walk anywhere in the spec or existing loadConfig/
+loadConfigV2 (both take `dir` directly, matching every other command)
+— skipping that item from the task's step list, corroborated by an
+existing memory note flagging the same discrepancy.
+
+citty gotcha (verified via a throwaway probe against the installed
+citty@0.1.6): `subCommands` resolution scans raw argv tokens for the
+first one not starting with `-` — it has no notion of "this token is a
+flag's value", so giving `promoteCmd` a `library` subCommand directly
+would make `roboto-mem promote --scope org ...` throw `Unknown command
+\`org\``` (first flag VALUE token misread as a subcommand name), and
+citty also does NOT `return` after dispatching a matched subCommand, so
+both the subcommand AND the parent's own `run` would fire. Fix: never
+register `subCommands` on `promoteCmd`; manually check `rawArgs[0] ===
+"library"` inside its own `run` and `return` after a manual `runCommand
+(promoteLibraryCmd, {rawArgs: rawArgs.slice(1)})` call — sidesteps both
+bugs, keeps `roboto-mem promote --scope ...` untouched.
+
+Existing locked-down test conflict: `tests/cli.test.ts`'s prompt-module-
+isolation suite asserts `syncCmd`'s cli.ts block never references
+`isInteractiveTty`/`createClackDriver`. The spec requires a TTY confirm
+for library sync collisions, so this needs to change — but the right fix
+is pushing TTY/clack orchestration UP into `syncCmd` (cli.ts layer, same
+place every other interactive command does it) while `sync.ts` itself
+(and `core/library.ts`) stay 100% prompt-module-free, accepting only a
+plain injected `confirm?: (message) => Promise<boolean>` callback
+(mirrors the existing `ghRunner` DI pattern) that defaults to
+auto-proceed when omitted. This keeps sync.ts on the leaf-file forbidden-
+module check UNCHANGED (the more important invariant — a hook-callable
+function must never block) and only trims `syncCmd` out of the
+cli.ts-wiring check's `it.each` array, with a comment explaining why.
+
+### Plan
+
+- [ ] `src/core/library.ts` (new): `commonsLibrariesDir`/`librariesHome`
+      path helpers; `planLibrary`/`applyLibrary` (tmp-then-rename copy,
+      mirrors materialize.ts's `copySkill`) internals; exported
+      `materializeLibraries({commonsDir, home, libraryNames, confirm?})`
+      — diffs each declared library (via `diffDirs`) against its local
+      cache, and when ANY has a pending diff calls `confirm(combined
+      summary)` ONCE (all-or-nothing per spec's known-limitations list,
+      not N per-library prompts) before applying; omitted confirm =
+      auto-pull. Returns `{synced, upToDate, skipped, failed}` +
+      `formatLibrariesReport` (mirrors materialize.ts's `formatReport`).
+- [ ] RED tests first: `tests/core/library.test.ts` — git-free (plain
+      tmpdirs, no git needed — commonsDir is already-cloned by the time
+      this runs), covering: added/changed/missing-in-commons, empty
+      libraryNames, confirm=false skips all pending, confirm omitted
+      auto-pulls, up-to-date library never triggers confirm.
+- [ ] `src/commands/sync.ts`: split today's `runSync` body into
+      `runSyncV1(config, options)` (byte-identical to today, renamed) +
+      new `runSyncV2(config, options)` (ensureRepo once on config.commons,
+      materializeLibraries over config.libraries, reuse shipped
+      materializeSkills, format combined output, exit 2 on any partial
+      failure). New top-level `runSync` dispatches: try `loadConfigV2`
+      first (v2 path on success); `reason:"missing"` → today's "run
+      roboto-mem init"; else try `loadConfig` (v1) — success → v1 path
+      (this is the backward-compat guarantee); else surface `loadConfigV2`'s
+      detail (more specific than v1's would be for hybrid/newer configs,
+      verified case-by-case, no string-matching involved — purely
+      structural on `.ok`/`.reason`). `SyncOptions` gains optional
+      `librariesTargetDir?` (test override, mirrors `skillsTargetDir`) and
+      `confirmLibrarySync?: (message) => Promise<boolean>`.
+- [ ] `tests/helpers/git.ts`: add `makeV2CommonsFixture(tmp, libraries?)`
+      — new, additive-only (does not touch `makeCommonsFixture`, which
+      stays exactly as-is given how widely it's already depended on) —
+      v2 memory.json, seeds `libraries/<name>/<relPath>` files.
+- [ ] RED tests: `tests/commands/sync.test.ts` v2 additions — clones a v2
+      commons + syncs declared libraries to `~/.roboto-mem/libraries/`,
+      confirm-injected TTY-yes/TTY-no/non-TTY(no confirm fn) branches,
+      missing-in-commons library → exit 2, materializeSkills still runs
+      for v2 too. All 5 EXISTING v1 tests must keep passing unchanged
+      (proves backward-compat item 8).
+- [ ] `src/commands/promote-library.ts` (new): `runPromoteLibrary({cwd,
+      name, commonsUrl?, author, date, home?, librariesRoot?, ghRunner?})`
+      — validates name/author/date, resolves commonsUrl (flag ||
+      `loadConfigV2(cwd).config.commons`), validates local library exists
+      (`~/.roboto-mem/libraries/<name>/LIBRARY.md`), ensureRepo, diffs
+      old-commons-side vs local (dir-diff, pre-overwrite, "symmetrically"
+      per its own doc comment) for the PR body, tree-hashes the local dir
+      via the already-shipped `hashSkillDir` (generic enough — no new hash
+      fn needed) for the commit message, checkout branch `library/<name>`
+      → overwrite `libraries/<name>/` → add/diff-cached-quiet-shortcut/
+      commit/push → `gh pr create` with compareUrl fallback (mirrors
+      submitSkillPr's shape; NOT calling it directly — 5/7 aspects differ
+      — target dir, branch prefix, commit/PR body, no provenance, no
+      skillMdOnly — and promote.ts/skill.ts already independently
+      duplicate this same git-plumbing shape today, so a third
+      independent implementation matches existing precedent over forcing
+      a premature shared abstraction).
+- [ ] RED tests: `tests/commands/promote-library.test.ts` — real bare-git
+      fixtures + ghStubFactory (mirrors skill.test.ts's style): first
+      promote (new library, no prior commons copy), update path (diff
+      body reflects changed files), no-op when identical, missing local
+      library error, missing commons/config error, bad name/author/date
+      gates.
+- [ ] `src/cli.ts`: `promoteLibraryCmd` (name positional `required:
+      false` + `reportMissingPositional` reuse, mirrors skillAdd/
+      skillPromote's existing pattern exactly) declared before
+      `promoteCmd`; `promoteCmd.run` manually dispatches on `rawArgs[0]
+      === "library"` (see citty gotcha above) instead of citty
+      `subCommands`. `syncCmd.run` builds a real `confirmLibrarySync`
+      (clack confirm) only when `isInteractiveTty()`, else leaves it
+      undefined (auto-pull) — no TTY-detection duplicated into sync.ts.
+- [ ] `tests/cli.test.ts`: remove `"syncCmd"` from the `forbiddenWiring`
+      `it.each` array (with a comment explaining why), keep
+      digestCmd/lintCmd/statusCmd unchanged; "has exactly 7 subcommand
+      keys" needs NO change (promote library is nested dispatch, not a
+      new top-level key).
+- [ ] 2 real end-to-end CLI-spawn cases in
+      `tests/integration/interactive-mode.test.ts` (reuses the file's
+      already-built cli.mjs): `promote library` missing NAME, and
+      `promote --scope ... ` still works unaffected (regression proof for
+      the citty gotcha fix).
+- [ ] typecheck + lint + full suite + coverage; /simplify pass; report in
+      3 sections (sync, materialize, promote) per the requester's ask.
+
+Explicitly OUT of scope for Phase 4 (per spec section boundaries): token
+budget enforcement (Phase 6/digest.ts), LIBRARY.md frontmatter schema
+(never defined by the spec), guided/interactive promote-library flow
+(task's CLI signature is flags-only, sync has no guided flow either),
+falling back promote-library's commons-url resolution to v1 `loadConfig`
+(v2-only concept; `--commons-url` flag always available as an explicit
+out), digest.ts hook changes (still Phase 6 — `syncRepos`/
+`materializeSkills` stay wired into the hook exactly as today).
+
+### Review — Phase 4 shipped
+
+All checklist items done. New: `src/core/library.ts` (materializeLibraries/
+formatLibrariesReport — diff+confirm+apply pipeline over dir-diff.ts, plain
+injected `confirm?` callback, all-or-nothing per-run gate), `src/commands/
+promote-library.ts` (runPromoteLibrary — self-contained PR flow mirroring
+submitSkillPr/runPromote's shape, not calling either directly — see the
+"5/7 aspects differ + existing precedent of independent PR-flow
+duplication" note above). Modified: `src/commands/sync.ts` (runSyncV1/
+runSyncV2 split behind a structural dispatch — loadConfigV2 first, fall
+back to loadConfig, else surface loadConfigV2's detail), `src/cli.ts`
+(promoteLibraryCmd + manual `rawArgs[0] === "library"` dispatch inside
+promoteCmd.run instead of citty subCommands; syncCmd builds the real
+clack confirm and injects it).
+
+Two things diverged from the plan mid-flight, both caught before they
+became bugs:
+
+1. **config.ts changed twice, concurrently, while sync.ts's dispatch was
+   being designed.** First CONFIG_VERSION bumped 1→2 (broke the "v1Result.ok
+   implies genuine v1" assumption my first dispatch draft relied on — a
+   hybrid v2+legacy-fields config would have been silently misrouted to the
+   v1 flow). Re-verified with a throwaway debug script
+   (`loadConfig`/`loadConfigV2` against a hand-built hybrid raw object)
+   before writing a word of sync.ts. Then, before I'd finished reacting, a
+   second concurrent edit added an explicit `version === CONFIG_VERSION`
+   guard to `validateConfig` (v1), which restored the original "v1Result.ok
+   ⟹ genuine v1" invariant and let the dispatch logic stay simple/structural
+   (no string-matching on CONFIG_V1_DEPRECATED_MESSAGE). Re-verified all 7
+   dispatch cases by hand against the final config.ts state; all 8 v2 sync
+   tests plus all 5 pre-existing v1 sync tests pass unchanged.
+2. **citty's subCommands mechanism is unsafe for retrofitting onto a
+   flag-only command.** Found via a throwaway probe against the installed
+   citty@0.1.6 (not assumed): `subCommands` resolution scans raw argv for
+   the first token not starting with `-`, with zero awareness of "this
+   token is a flag's value" — giving promoteCmd a `library` subCommand
+   directly makes `promote --scope org ...` throw `Unknown command \`org\``,
+   AND citty never `return`s after a matched-subcommand dispatch (both the
+   subcommand's run and the parent's own run fire). Fixed with manual
+   dispatch (`rawArgs[0] === "library"` + `runCommand(promoteLibraryCmd,
+   ...)` + immediate `return`), verified against the real built cli.mjs
+   (not just unit tests) for both `promote --scope ...` (unaffected) and
+   `promote library` (missing-NAME shows the right usage screen, not
+   promoteCmd's).
+
+Also found and fixed one pre-existing test-infra gap unrelated to either
+of the above: `tests/helpers/cli-runner.ts`'s `rawRun` strips the NODE_ENV/
+TEST/VITEST/CI/GITHUB_ACTIONS env family but not FORCE_COLOR — 2
+interactive-mode.test.ts tests fail on any machine with FORCE_COLOR set
+locally (reproduced on the clean pre-Phase-4 tree via `git stash`, so not
+caused by this work). Left unfixed — out of scope for this task, flagged
+here instead of silently patching shared test infra as a drive-by.
+
+Tests: 396 (Phase 1 baseline) → 449 (+53, on top of the concurrent Phase 2
+work also landing during this session): library.test.ts +9, sync.test.ts
++8 (v2 flow: multi-library sync, non-TTY auto-pull, confirm-yes,
+confirm-no/skip, missing-in-commons partial failure, skills-still-
+materialize, missing-config parity, hybrid-config error routing),
+promote-library.test.ts +9 (new-library PR, update/no-op path via a real
+merge-then-diverge cycle, missing-local-library, commons-url flag vs v2-
+config fallback, missing-both error, author/date/name gates, gh-
+unavailable fallback), cli.test.ts unchanged count (forbiddenWiring array
+edited, not grown), interactive-mode.test.ts +2 (real built-CLI proof for
+both citty-dispatch directions).
+
+Coverage: library.ts 98.24%/91.66%/100%/98%, sync.ts 97.67%/93.33%/100%/
+97.56%, promote-library.ts 86.36%/85.71%/83.33%/88.33% (in line with
+sibling promote.ts 82.1%/68.33% and skill.ts 82.12%/72.11% — uncovered
+lines are the never-unit-tested `defaultGhRunner` and a git-push-failure
+branch, both pre-existing-shaped gaps, not new ones). Repo-wide:
+92.98%/85.24%/95.91%/94.05%, all four thresholds (80%) cleared.
+
+Gates: typecheck/lint/test(449/449)/build all green. Reverted dist/cli.mjs
+after two verification builds (manual citty-dispatch probing + a full
+tsdown build) — Phase 4 is source+tests only, no release intended, same
+precedent as Phase 1.

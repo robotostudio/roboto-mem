@@ -6,13 +6,16 @@ import {
   type ArgsDef,
   type CommandDef,
   defineCommand,
+  runCommand,
   runMain,
   showUsage,
 } from "citty";
 import { runDigest } from "./commands/digest.js";
 import { runInit } from "./commands/init.js";
 import { runLint } from "./commands/lint.js";
+import { runMigrate } from "./commands/migrate.js";
 import { runPromote } from "./commands/promote.js";
+import { runPromoteLibrary } from "./commands/promote-library.js";
 import { runSkillAdd, runSkillPromote } from "./commands/skill.js";
 import { runStatus } from "./commands/status.js";
 import { runSync } from "./commands/sync.js";
@@ -44,6 +47,7 @@ import {
   type SkillPromotePromptResult,
   type SkillPromoteProvided,
 } from "./core/prompts.js";
+import { splitSquads } from "./core/scopes.js";
 import { checkForUpdate } from "./core/update-check.js";
 import { VERSION } from "./core/version.js";
 
@@ -130,6 +134,43 @@ const safeNag = async (): Promise<string | undefined> => {
   }
 };
 
+/**
+ * Real, clack-backed library confirm/add/remove for init's v2 (global
+ * library model) flow — built here (not in init.ts, which stays prompt-
+ * module-free like every other command) and injected as a plain callback.
+ * Mirrors the design spec's init steps 7–8 literally: declining the initial
+ * confirm skips straight to an empty list (no add/remove asked); accepting
+ * it allows freeform additions/removals on top of the detected set.
+ */
+const selectLibraries = async (input: {
+  available: string[];
+  detected: string[];
+}): Promise<string[] | undefined> => {
+  const driver = await createClackDriver();
+  const message = [
+    `Available in commons: ${input.available.length ? input.available.join(", ") : "(none)"}`,
+    `Detected in your deps: ${input.detected.length ? input.detected.join(", ") : "(none)"}`,
+    "Load these libraries?",
+  ].join("\n");
+  const proceed = await driver.confirm({ message, initialValue: true });
+  if (driver.isCancel(proceed)) return undefined;
+  if (proceed !== true) return [];
+
+  const added = await driver.text({
+    message: "Add more? (comma-separated names, or press enter)",
+  });
+  if (driver.isCancel(added)) return undefined;
+  const removed = await driver.text({
+    message: "Remove any? (comma-separated names, or press enter)",
+  });
+  if (driver.isCancel(removed)) return undefined;
+
+  const removedSet = new Set(splitSquads(String(removed)));
+  return [
+    ...new Set([...input.detected, ...splitSquads(String(added))]),
+  ].filter((lib) => !removedSet.has(lib));
+};
+
 const initCmd = defineCommand({
   meta: { name: "init", description: "Initialise roboto-mem in a project" },
   args: {
@@ -138,6 +179,7 @@ const initCmd = defineCommand({
     project: { type: "string", description: INIT_FIELD_DESC.project },
     squads: { type: "string", description: INIT_FIELD_DESC.squads },
     commons: { type: "boolean", description: INIT_FIELD_DESC.scaffoldCommons },
+    libraries: { type: "string", description: INIT_FIELD_DESC.libraries },
   },
   async run({ args }) {
     const dir = args.dir as string;
@@ -146,6 +188,7 @@ const initCmd = defineCommand({
       commonsUrl: args["commons-url"] as string | undefined,
       squads: args.squads as string | undefined,
       scaffoldCommons: args.commons as boolean | undefined,
+      libraries: args.libraries as string | undefined,
     };
 
     const filled: Resolved<InitPromptResult> = isInteractiveTty()
@@ -157,16 +200,36 @@ const initCmd = defineCommand({
       return;
     }
 
-    const result = await runInit({ dir, ...filled.options });
+    const result = await runInit({
+      dir,
+      ...filled.options,
+      selectLibraries: isInteractiveTty() ? selectLibraries : undefined,
+    });
     emit(result);
   },
 });
+
+/**
+ * Real, clack-backed confirm for sync's library-collision gate — built here
+ * (not in sync.ts, which must stay prompt-module-free; see
+ * tests/cli.test.ts's "prompt module isolation" suite) and injected as a
+ * plain callback. Non-TTY leaves confirmLibrarySync undefined, which
+ * core/library.ts's materializeLibraries treats as auto-pull.
+ */
+const confirmLibrarySync = async (message: string): Promise<boolean> => {
+  const driver = await createClackDriver();
+  const answer = await driver.confirm({ message, initialValue: true });
+  return answer === true;
+};
 
 const syncCmd = defineCommand({
   meta: { name: "sync", description: "Sync memory repos" },
   args: {},
   async run() {
-    const result = await runSync({ cwd: process.cwd() });
+    const result = await runSync({
+      cwd: process.cwd(),
+      confirmLibrarySync: isInteractiveTty() ? confirmLibrarySync : undefined,
+    });
     emit(result);
   },
 });
@@ -202,6 +265,61 @@ const digestCmd = defineCommand({
   },
 });
 
+// Distinct from entry `promote` and `skill promote` — pushes a locally
+// materialized library (~/.roboto-mem/libraries/<name>) to the commons via
+// PR. Deliberately NOT registered as promoteCmd's citty `subCommands`: citty
+// scans raw argv for the first token not starting with "-" to resolve a
+// subcommand, with no notion of "this token is a flag's value" — so
+// `roboto-mem promote --scope org ...` would misread "org" as an unknown
+// subcommand, AND citty never `return`s after dispatching a matched
+// subCommand (both the subcommand's run AND the parent's own run would
+// fire). promoteCmd.run below dispatches on `rawArgs[0] === "library"`
+// manually instead, sidestepping both issues.
+const promoteLibraryCmd = defineCommand({
+  meta: {
+    name: "library",
+    description:
+      "Promote a local library (~/.roboto-mem/libraries/<name>) to the commons (opens a PR)",
+  },
+  args: {
+    // required:false so the reportMissingPositional pattern below (mirrors
+    // skillAdd/skillPromote) renders this command's own usage rather than
+    // citty's default parse-time throw.
+    name: { type: "positional", description: "Library name", required: false },
+    "commons-url": {
+      type: "string",
+      description:
+        "Commons repo URL (defaults to the project's .roboto-mem.json)",
+    },
+    author: { type: "string", description: "Author" },
+    date: { type: "string", description: "Date (YYYY-MM-DD)" },
+  },
+  async run({ args }) {
+    if (!args.name) {
+      // promoteCmd (unlike skillCmd, the parent in every other
+      // reportMissingPositional call) has a concrete `args` shape, so its
+      // inferred CommandDef<T> isn't structurally assignable to the
+      // ArgsDef-generic `parent` parameter — same variance reportMissingPositional
+      // itself already casts through internally for showUsage.
+      await reportMissingPositional(
+        promoteLibraryCmd,
+        promoteCmd as CommandDef<ArgsDef>,
+        "name",
+        "NAME",
+      );
+      return;
+    }
+    const result = await runPromoteLibrary({
+      cwd: process.cwd(),
+      name: args.name as string,
+      commonsUrl: args["commons-url"] as string | undefined,
+      author: (args.author as string | undefined) ?? "",
+      date: (args.date as string | undefined) ?? todayYMD(),
+    });
+    emit(result);
+  },
+});
+
 const promoteCmd = defineCommand({
   meta: { name: "promote", description: "Promote an entry to the commons" },
   args: {
@@ -224,7 +342,17 @@ const promoteCmd = defineCommand({
     overrides: { type: "string", description: PROMOTE_FIELD_DESC.overrides },
     force: { type: "boolean", description: PROMOTE_FIELD_DESC.force },
   },
-  async run({ args }) {
+  async run({ args, rawArgs }) {
+    // `roboto-mem promote library <name>` — manual dispatch (see the
+    // comment above promoteLibraryCmd for why this isn't a citty
+    // subCommand). Nothing about entry-promote's own flags (--scope,
+    // --type, etc.) ever starts with a bare "library" token, so this can
+    // only match the real `promote library ...` invocation.
+    if (rawArgs[0] === "library") {
+      await runCommand(promoteLibraryCmd, { rawArgs: rawArgs.slice(1) });
+      return;
+    }
+
     const provided: PromoteProvided = {
       scope: args.scope as string | undefined,
       type: args.type as string | undefined,
@@ -336,6 +464,18 @@ const statusCmd = defineCommand({
   args: {},
   async run() {
     const result = await runStatus({ cwd: process.cwd() });
+    emit(result);
+  },
+});
+
+const migrateCmd = defineCommand({
+  meta: {
+    name: "migrate",
+    description: "Migrate .roboto-mem.json from configVersion 1 to 2",
+  },
+  args: {},
+  async run() {
+    const result = await runMigrate({ cwd: process.cwd() });
     emit(result);
   },
 });
@@ -474,6 +614,7 @@ export const main = defineCommand({
     promote: promoteCmd,
     lint: lintCmd,
     status: statusCmd,
+    migrate: migrateCmd,
     skill: skillCmd,
   },
 });

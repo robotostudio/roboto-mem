@@ -2,7 +2,13 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runInit } from "../../src/commands/init.js";
-import { CONFIG_FILE, loadConfig, saveConfig } from "../../src/core/config.js";
+import {
+  CONFIG_FILE,
+  loadConfig,
+  loadConfigV2,
+  saveConfig,
+} from "../../src/core/config.js";
+import { makeV2CommonsFixture, pushEntry } from "../helpers/git.js";
 import { tmpDirFactory } from "../helpers/tmp.js";
 
 describe("init command", () => {
@@ -314,5 +320,349 @@ describe("init command", () => {
     expect(result.output).toContain("project/loggle");
     // stack scope from next dep
     expect(result.output).toContain("stack/nextjs");
+  });
+});
+
+describe("init command — v2 (global library model)", () => {
+  const tmp = tmpDirFactory("rm-init-v2-");
+  afterEach(tmp.cleanup);
+  const makeDir = tmp.make;
+
+  it("commons-url without project: detects libraries from package.json, writes v2 config, auto-syncs", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const target = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "# Resend\nSummary." },
+      next: { "LIBRARY.md": "# Next\nSummary." },
+      sanity: { "LIBRARY.md": "# Sanity\nSummary." },
+    });
+    await fs.writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ dependencies: { resend: "1.0.0", next: "14.0.0" } }),
+      "utf8",
+    );
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home,
+      skillsTargetDir: target,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain(`Bound commons: ${fixture.remoteUrl}`);
+    expect(result.output).toContain("Libraries: next, resend");
+    expect(result.output).toContain("Libraries synced.");
+
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) throw new Error("config should be ok");
+    expect(loaded.config.configVersion).toBe(2);
+    expect(loaded.config.commons).toBe(fixture.remoteUrl);
+    expect(loaded.config.libraries.sort()).toEqual(["next", "resend"]);
+
+    // auto-sync step 10: libraries materialized into home/libraries/
+    const resendMd = await fs.readFile(
+      path.join(home, "libraries", "resend", "LIBRARY.md"),
+      "utf8",
+    );
+    expect(resendMd).toBe("# Resend\nSummary.");
+  });
+
+  it("explicit libraries overrides auto-detection entirely", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+      sanity: { "LIBRARY.md": "hi" },
+    });
+    // deps would detect "resend"; explicit override picks "sanity" instead
+    await fs.writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ dependencies: { resend: "1.0.0" } }),
+      "utf8",
+    );
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      libraries: ["sanity"],
+      home,
+      skillsTargetDir: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(0);
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.config.libraries).toEqual(["sanity"]);
+  });
+
+  it("no package.json: writes an empty libraries array without erroring", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+    });
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home,
+      skillsTargetDir: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("Libraries: (none)");
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.config.libraries).toEqual([]);
+  });
+
+  it("config already exists: exits 1 mentioning update-libraries, does not overwrite", async () => {
+    const dir = await makeDir();
+    const existingContent = JSON.stringify(
+      {
+        configVersion: 2,
+        commons: "https://example.com/old.git",
+        libraries: [],
+      },
+      null,
+      2,
+    );
+    await fs.writeFile(path.join(dir, CONFIG_FILE), existingContent, "utf8");
+
+    const result = await runInit({
+      dir,
+      commonsUrl: "https://example.com/new.git",
+      home: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("Config already exists");
+    expect(result.output).toContain("roboto-mem update-libraries");
+    expect(await fs.readFile(path.join(dir, CONFIG_FILE), "utf8")).toBe(
+      existingContent,
+    );
+  });
+
+  it("commons has no libraries/ directory: exits 1 with a clear error", async () => {
+    const dir = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {});
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("Commons has no libraries");
+    await expect(fs.access(path.join(dir, CONFIG_FILE))).rejects.toThrow();
+  });
+
+  it("scoped dependency with no alias: still exits 0, warns in output", async () => {
+    const dir = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+    });
+    await fs.writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({
+        dependencies: { resend: "1.0.0", "@unknown-scope/thing": "1.0.0" },
+      }),
+      "utf8",
+    );
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home: await makeDir(),
+      skillsTargetDir: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain(
+      "WARNING: Couldn't map @unknown-scope/thing to a known library",
+    );
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.config.libraries).toEqual(["resend"]);
+  });
+
+  it("clone/pull failure: exits 1 with a clear network error, no config written", async () => {
+    const dir = await makeDir();
+
+    const result = await runInit({
+      dir,
+      commonsUrl: "/nonexistent-url/that-does-not-exist.git",
+      home: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("Cannot reach commons");
+    await expect(fs.access(path.join(dir, CONFIG_FILE))).rejects.toThrow();
+  });
+
+  it("libraries flag alone (no commons-url, no project) still falls back to the v1 usage message", async () => {
+    const dir = await makeDir();
+
+    const result = await runInit({ dir, libraries: ["resend"] });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toMatch(/--commons-url/i);
+    expect(result.output).toMatch(/--project/i);
+  });
+
+  it("an empty-string commons-url reaches the v2 flow's own usage message (project still undefined)", async () => {
+    const dir = await makeDir();
+
+    const result = await runInit({ dir, commonsUrl: "" });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toBe(
+      [
+        "Missing required option.",
+        "  --commons-url <git-url>   URL of the Commons memory repo",
+        "",
+        "Example:",
+        "  roboto-mem init --commons-url https://github.com/org/team-memory.git",
+      ].join("\n"),
+    );
+  });
+
+  it("interactive selectLibraries callback shapes the final list (detected + manual add)", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+      next: { "LIBRARY.md": "hi" },
+    });
+    await fs.writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ dependencies: { resend: "1.0.0" } }),
+      "utf8",
+    );
+
+    const seen: { available: string[]; detected: string[] }[] = [];
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home,
+      skillsTargetDir: await makeDir(),
+      selectLibraries: async (input) => {
+        seen.push(input);
+        return [...input.detected, "next"];
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(seen).toEqual([
+      { available: ["next", "resend"], detected: ["resend"] },
+    ]);
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok)
+      expect(loaded.config.libraries.sort()).toEqual(["next", "resend"]);
+  });
+
+  it("selectLibraries returning undefined (cancelled) aborts without writing config", async () => {
+    const dir = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+    });
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home: await makeDir(),
+      selectLibraries: async () => undefined,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("Cancelled");
+    await expect(fs.access(path.join(dir, CONFIG_FILE))).rejects.toThrow();
+  });
+
+  it("declining the selectLibraries confirm returns an empty list without asking add/remove", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+    });
+    await fs.writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ dependencies: { resend: "1.0.0" } }),
+      "utf8",
+    );
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      home,
+      skillsTargetDir: await makeDir(),
+      selectLibraries: async () => [],
+    });
+
+    expect(result.exitCode).toBe(0);
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.config.libraries).toEqual([]);
+  });
+
+  it("sync partial failure after write still exits 0, config already on disk, output warns", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "hi" },
+    });
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      libraries: ["resend", "nonexistent-lib"],
+      home,
+      skillsTargetDir: await makeDir(),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("WARNING: sync did not fully complete");
+    const loaded = await loadConfigV2(dir);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) {
+      expect(loaded.config.libraries.sort()).toEqual([
+        "nonexistent-lib",
+        "resend",
+      ]);
+    }
+  });
+
+  it("materializes commons skills as part of the v2 auto-sync step", async () => {
+    const dir = await makeDir();
+    const home = await makeDir();
+    const target = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {});
+    await pushEntry(
+      fixture,
+      "skills/grill-me/SKILL.md",
+      "---\nname: grill-me\ndescription: d\n---\nbody",
+    );
+    // give commons a libraries/ dir so detection doesn't error (still 0 declared)
+    await pushEntry(fixture, "libraries/resend/LIBRARY.md", "hi");
+
+    const result = await runInit({
+      dir,
+      commonsUrl: fixture.remoteUrl,
+      libraries: [],
+      home,
+      skillsTargetDir: target,
+    });
+
+    expect(result.exitCode).toBe(0);
+    const skillMd = await fs.readFile(
+      path.join(target, "grill-me", "SKILL.md"),
+      "utf8",
+    );
+    expect(skillMd).toContain("name: grill-me");
   });
 });

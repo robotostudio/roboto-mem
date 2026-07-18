@@ -83,6 +83,47 @@ export const makeCommonsFixture = async (
   return { remoteUrl: bareDir, workdir };
 };
 
+const V2_MEMORY_JSON = JSON.stringify(
+  { formatVersion: 2, budgets: { defaultTotal: 2000, libraryMax: 1000 } },
+  null,
+  2,
+);
+
+/** v2-shaped commons (global library model): FORMAT_VERSION 2 memory.json,
+ * no legacy entries/{stacks,squads,projects,org} dirs. `libraries` seeds
+ * commons/libraries/<name>/<relPath> files (e.g. LIBRARY.md). Additive-only —
+ * does not touch makeCommonsFixture, which stays v1-shaped for every
+ * existing v1 test. */
+export const makeV2CommonsFixture = async (
+  tmp: string,
+  libraries: Record<string, Record<string, string>> = {},
+): Promise<CommonsFixture> => {
+  const bareDir = path.join(tmp, "commons.git");
+  const workdir = path.join(tmp, "work");
+
+  await run("git", ["init", "--bare", "--initial-branch=main", bareDir], tmp);
+  await run("git", ["clone", bareDir, workdir], tmp);
+
+  await run("git", ["config", "user.email", "test@example.com"], workdir);
+  await run("git", ["config", "user.name", "Test User"], workdir);
+
+  await writeFile(path.join(workdir, "memory.json"), V2_MEMORY_JSON, "utf8");
+
+  for (const [libName, files] of Object.entries(libraries)) {
+    for (const [relPath, content] of Object.entries(files)) {
+      const abs = path.join(workdir, "libraries", libName, relPath);
+      await mkdir(path.dirname(abs), { recursive: true });
+      await writeFile(abs, content, "utf8");
+    }
+  }
+
+  await run("git", ["add", "."], workdir);
+  await run("git", ["commit", "-m", "initial (v2)"], workdir);
+  await run("git", ["push", "origin", "main"], workdir);
+
+  return { remoteUrl: bareDir, workdir };
+};
+
 export const pushEntry = async (
   fixture: CommonsFixture,
   relPath: string,

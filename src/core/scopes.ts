@@ -35,8 +35,22 @@ export const sessionScopes = (input: SessionScopeInput): string[] => {
   return ["org", ...sortedSquads, ...stacks, `project/${input.project}`];
 };
 
-export const entryApplies = (entryScope: string, scopes: string[]): boolean =>
-  scopes.includes(entryScope);
+// Global library model (Phase 2): untagged entries (no scope: frontmatter)
+// always apply; `library:{name}` entries apply only if {name} is declared.
+// Legacy org/squad/stack/project values fall through to the pre-existing
+// exact-match check, unchanged — see docs/design-specs/2026-07-17-global-library-model.md.
+export const LIBRARY_SCOPE_RE = /^library:([a-z0-9][a-z0-9-]*)$/;
+
+export const entryApplies = (
+  entryScope: string | undefined,
+  scopes: string[],
+): boolean => {
+  if (!entryScope) return true;
+  const match = LIBRARY_SCOPE_RE.exec(entryScope);
+  if (!match) return scopes.includes(entryScope);
+  const [, library] = match;
+  return library !== undefined && scopes.includes(library);
+};
 
 export const splitSquads = (raw: string): string[] =>
   raw

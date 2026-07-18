@@ -1,12 +1,11 @@
 import { readCache, writeCache } from "../core/cache.js";
 import { loadConfig } from "../core/config.js";
 import { compileDigest } from "../core/digest.js";
-import { materializeSkills } from "../core/materialize.js";
 import { FORMAT_VERSION, loadMemory, memoryHome } from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
 import { VERSION } from "../core/version.js";
-import { syncRepos } from "./sync.js";
+import { localRepos } from "./sync.js";
 
 export interface DigestOptions {
   cwd: string;
@@ -14,7 +13,6 @@ export interface DigestOptions {
   home?: string;
   nag?: string;
   today?: string;
-  skillsTargetDir?: string;
 }
 
 const todayString = (): string => new Date().toISOString().slice(0, 10);
@@ -78,37 +76,18 @@ export const runDigest = async (
 
   const { config } = configResult;
 
-  // Step 2: sync repos
-  const synced = await syncRepos(config, home);
+  // Step 2: resolve local repos — no network. The hook only reads whatever
+  // a prior `roboto-mem sync` (or `init`) left on disk; cloning/pulling and
+  // skill materialization are manual `roboto-mem sync` operations now (see
+  // docs/design-specs/2026-07-17-global-library-model.md, "SessionStart
+  // Integration").
+  const synced = await localRepos(config, home);
 
   if (!synced.commons.ok) {
     const msg = `Team Memory unavailable: ${synced.commons.error}`;
     if (hook) return hookResult(msg);
     return { exitCode: 1, output: msg };
   }
-
-  // Step 2b: materialize team skills (best-effort; fresh sync only)
-  const skillReport = synced.commons.stale
-    ? undefined
-    : await materializeSkills({
-        commonsDir: synced.commons.dir,
-        home,
-        targetDir: options.skillsTargetDir,
-      });
-
-  const skillWarnings: string[] = skillReport
-    ? [
-        ...skillReport.restored.map(
-          (name) =>
-            `> WARNING: team skill ${name}: restored — local edits were replaced by the team version. Promote changes via PR instead.`,
-        ),
-        ...(skillReport.failed.length
-          ? [
-              `> WARNING: ${skillReport.failed.length} team skill(s) failed to materialize — run roboto-mem status.`,
-            ]
-          : []),
-      ]
-    : [];
 
   // Step 3: load commons memory
   const commonsLoad = await loadMemory(synced.commons.dir);
@@ -156,12 +135,11 @@ export const runDigest = async (
     Object.assign(allBudgets, overlayLoad.declaredBudgets);
   }
 
-  // Step 5: derive date — stale sync uses cache date
-  const isStale = synced.commons.stale;
-  const cache = isStale ? await readCache(home, cwd) : undefined;
-  const syncedDate = isStale
-    ? (cache?.date ?? "unknown")
-    : (today ?? todayString());
+  // Step 5: derive today's date for the header. The hook only ever reads an
+  // already-local clone (no live pull), so there is no per-run "stale"
+  // signal to fall back on here — `roboto-mem sync` is what keeps that
+  // clone fresh; see localRepo in core/memory-repo.ts.
+  const syncedDate = today ?? todayString();
 
   // Step 6: compile
   const scopes = sessionScopes({
@@ -182,15 +160,13 @@ export const runDigest = async (
     },
   });
 
-  const allWarnings = [...overlayWarnings, ...skillWarnings];
-  const fullOutput = allWarnings.length
-    ? `${digest}\n${allWarnings.join("\n")}`
+  const fullOutput = overlayWarnings.length
+    ? `${digest}\n${overlayWarnings.join("\n")}`
     : digest;
 
-  // Step 7: write cache only when sync was fresh
-  if (!isStale) {
-    await writeCache(home, cwd, { date: syncedDate, digest: fullOutput });
-  }
+  // Step 7: write cache — always, so status/staleResult have a last-known-good
+  // digest to fall back on if a future run hits a format/config mismatch.
+  await writeCache(home, cwd, { date: syncedDate, digest: fullOutput });
 
   return hook ? hookResult(fullOutput) : { exitCode: 0, output: fullOutput };
 };

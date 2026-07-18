@@ -6,8 +6,16 @@ import {
   loadConfig,
   type RepoConfig,
   saveConfig,
+  saveConfigV2,
 } from "../core/config.js";
 import { detectWorkspaces } from "../core/detect.js";
+import {
+  listCommonsLibraries,
+  mapDepsToLibraries,
+  scanPackageDeps,
+} from "../core/library-detect.js";
+import { exists } from "../core/materialize.js";
+import { ensureRepo, memoryHome } from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
 import {
@@ -16,6 +24,7 @@ import {
   MEMORY_CI_YML,
   MEMORY_JSON,
 } from "./commons-templates.js";
+import { runSync } from "./sync.js";
 
 export interface InitOptions {
   dir: string;
@@ -23,6 +32,26 @@ export interface InitOptions {
   project?: string;
   squads?: string[];
   scaffoldCommons?: boolean;
+  /** Global library model (v2): explicit library list. When given
+   * (including `[]`), skips auto-detect confirmation entirely — the
+   * detected set is only used as a fallback/prefill. Undefined = run
+   * detection and, if `selectLibraries` is set, ask the user. */
+  libraries?: string[];
+  /** Test-only override for `~/.roboto-mem` — mirrors sync.ts/library.ts. */
+  home?: string;
+  /** Test-only override for the auto-sync step's skills materialize target. */
+  skillsTargetDir?: string;
+  /**
+   * TTY-only confirm/add/remove step (design spec's init steps 7–8).
+   * Undefined = non-interactive default: accept the detected set as-is.
+   * Returning `undefined` from the callback means "cancelled". Built and
+   * injected by cli.ts's initCmd — init.ts itself stays prompt-module-free,
+   * same DI pattern as sync.ts's `confirmLibrarySync`.
+   */
+  selectLibraries?: (input: {
+    available: string[];
+    detected: string[];
+  }) => Promise<string[] | undefined>;
 }
 
 /** Never clobbers a pre-existing file — scaffolding into an already-bound
@@ -235,5 +264,120 @@ const bindMode = async (options: InitOptions): Promise<CommandResult> => {
   };
 };
 
-export const runInit = async (options: InitOptions): Promise<CommandResult> =>
-  options.scaffoldCommons ? scaffoldMode(options.dir) : bindMode(options);
+const initUsageV2 = (): string =>
+  [
+    "Missing required option.",
+    "  --commons-url <git-url>   URL of the Commons memory repo",
+    "",
+    "Example:",
+    "  roboto-mem init --commons-url https://github.com/org/team-memory.git",
+  ].join("\n");
+
+const fail = (output: string): CommandResult => ({ exitCode: 1, output });
+
+/**
+ * Global library model (Phase 3): the new `.roboto-mem.json` v2 flow —
+ * "Library Detection & Init Flow" in docs/design-specs/2026-07-17-global-
+ * library-model.md, steps 1–10 (step 11's non-TTY-errors framing is
+ * softened to "flags-only never prompts", matching every other guided
+ * command in this codebase — see runInit's dispatch comment for why).
+ */
+const bindModeV2 = async (options: InitOptions): Promise<CommandResult> => {
+  const { dir, home = memoryHome() } = options;
+
+  // Step 1: a pre-existing .roboto-mem.json (any version/shape) blocks a
+  // fresh v2 write — refreshing an existing binding is update-libraries's
+  // job, not init's.
+  if (await exists(path.join(dir, CONFIG_FILE))) {
+    return fail(
+      "Config already exists. Run `roboto-mem update-libraries` to refresh.",
+    );
+  }
+
+  // Step 2: resolve commons URL. Interactive callers resolve this via
+  // interactive.ts's own "bind-libraries" prompt (which prefills a global-
+  // config default) before ever reaching here; a bare flags/non-interactive
+  // call requires it explicitly.
+  const commonsUrl = options.commonsUrl;
+  if (!commonsUrl) return fail(initUsageV2());
+
+  // Step 3: clone/pull commons (reuses shipped ensureRepo/repoDirFor).
+  const repoSync = await ensureRepo(commonsUrl, home);
+  if (!repoSync.ok) {
+    return fail(
+      `Cannot reach commons; check network and URL: ${repoSync.error}`,
+    );
+  }
+
+  // Step 4: list available libraries.
+  const available = await listCommonsLibraries(repoSync.dir);
+  if (available === undefined) {
+    return fail(
+      "Commons has no libraries. Team must create v2-format commons.",
+    );
+  }
+
+  // Steps 5–6: scan package.json deps, intersect against available libraries.
+  const deps = await scanPackageDeps(dir);
+  const detection = deps
+    ? mapDepsToLibraries(deps, available)
+    : { detected: [], warnings: [] };
+
+  // Steps 7–9: explicit override wins outright (mirrors --commons winning
+  // outright over init's mode-select); otherwise ask (TTY) or accept the
+  // detected set as-is (non-interactive default, mirrors sync.ts's
+  // confirm-omitted-means-auto-pull convention).
+  const chosen =
+    options.libraries ??
+    (options.selectLibraries
+      ? await options.selectLibraries({
+          available,
+          detected: detection.detected,
+        })
+      : detection.detected);
+
+  if (chosen === undefined) return fail("Cancelled.");
+
+  // Step 9: write config.
+  await saveConfigV2(dir, {
+    configVersion: 2,
+    commons: commonsUrl,
+    libraries: chosen,
+  });
+
+  // Step 10: auto-sync, silently (non-blocking — a sync failure warns but
+  // never undoes the config write already on disk).
+  const syncResult = await runSync({
+    cwd: dir,
+    home,
+    skillsTargetDir: options.skillsTargetDir,
+  });
+  const syncLine =
+    syncResult.exitCode === 0
+      ? "Libraries synced."
+      : `WARNING: sync did not fully complete (${syncResult.output.split("\n")[0]}). Run roboto-mem sync manually.`;
+
+  return {
+    exitCode: 0,
+    output: [
+      `Bound commons: ${commonsUrl}`,
+      `Libraries: ${chosen.length ? chosen.join(", ") : "(none)"}`,
+      ...detection.warnings.map((w) => `WARNING: ${w.message}`),
+      syncLine,
+    ].join("\n"),
+  };
+};
+
+// Global library model: a project explicitly opting into the new schema
+// gives --commons-url without --project (v2 has no project concept at
+// all) — every existing v1 invocation always sets `project` (either via
+// flag or by rebinding from an already-v1-shaped file on disk), so this
+// never reroutes a single pre-existing test/usage. See docs/design-specs/
+// 2026-07-17-global-library-model.md's "Library Detection & Init Flow".
+const usesLibraryModel = (options: InitOptions): boolean =>
+  options.project === undefined && options.commonsUrl !== undefined;
+
+export const runInit = async (options: InitOptions): Promise<CommandResult> => {
+  if (options.scaffoldCommons) return scaffoldMode(options.dir);
+  return usesLibraryModel(options) ? bindModeV2(options) : bindMode(options);
+};

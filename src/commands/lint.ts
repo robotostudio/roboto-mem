@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { glob } from "tinyglobby";
-import { estimateTokens } from "../core/digest.js";
+import { entryRef, estimateTokens, scopeKey } from "../core/digest.js";
 import type { Entry } from "../core/entry.js";
 import { loadMemory } from "../core/memory-repo.js";
 import { scanEntry } from "../core/scan.js";
@@ -52,10 +52,13 @@ const parseErrorFindings = (
 const overrideFindings = (entries: Entry[]): string[] => {
   const findings: string[] = [];
 
-  // Build lookup: "scope/name" -> entry
-  const byRef = new Map<string, Entry>(
-    entries.map((e) => [`${e.scope}/${e.name}`, e]),
-  );
+  // Build lookup: entry ref ("scope/name", or bare "name" if untagged) -> entry.
+  // Note: parseRef below is still legacy-only (org/squad/stack/project) —
+  // library:{name} and bare (untagged-target) override refs are Phase 5
+  // work (commons-side migration + lint v2 validation); this key
+  // construction just stays consistent with digest.ts's entryRef so the
+  // map itself never holds a nonsense "undefined/name" key.
+  const byRef = new Map<string, Entry>(entries.map((e) => [entryRef(e), e]));
 
   for (const entry of entries) {
     if (!entry.overrides) continue;
@@ -100,9 +103,10 @@ const budgetFindings = (
 ): string[] => {
   const byScope = new Map<string, Entry[]>();
   for (const entry of entries) {
-    const group = byScope.get(entry.scope) ?? [];
+    const key = scopeKey(entry.scope);
+    const group = byScope.get(key) ?? [];
     group.push(entry);
-    byScope.set(entry.scope, group);
+    byScope.set(key, group);
   }
 
   const findings: string[] = [];

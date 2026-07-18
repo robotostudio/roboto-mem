@@ -295,6 +295,40 @@ describe("resolveInitPrompts", () => {
     const result = await resolveInitPrompts({}, driver, dir);
     expect(result).toEqual({ cancelled: true });
   });
+
+  it("bare invocation + bind-libraries selected: asks only the commons URL, no project/squads", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([
+      "bind-libraries",
+      "https://github.com/org/commons.git",
+    ]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({
+      cancelled: false,
+      options: { commonsUrl: "https://github.com/org/commons.git" },
+    });
+  });
+
+  it("bind-libraries commonsUrl rejects a non-url before accepting a valid one", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([
+      "bind-libraries",
+      "asdasd",
+      "git@host:org/commons.git",
+    ]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({
+      cancelled: false,
+      options: { commonsUrl: "git@host:org/commons.git" },
+    });
+  });
+
+  it("cancelling the bind-libraries commonsUrl prompt → cancelled:true", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver(["bind-libraries", CANCEL]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({ cancelled: true });
+  });
 });
 
 describe("resolvePromotePrompts", () => {

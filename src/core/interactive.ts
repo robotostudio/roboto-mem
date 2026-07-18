@@ -10,6 +10,7 @@ import {
   buildPromoteOptions,
   buildSkillAddOptions,
   buildSkillPromoteOptions,
+  INIT_FIELD_DESC,
   type InitPromptResult,
   type InitProvided,
   listPersonalSkillNames,
@@ -25,6 +26,7 @@ import {
   type SkillAddProvided,
   type SkillPromotePromptResult,
   type SkillPromoteProvided,
+  validateCommonsUrl,
 } from "./prompts.js";
 
 export type Resolved<T> =
@@ -119,6 +121,10 @@ export const resolveInitPrompts = async (
     message: "How should this directory be set up?",
     options: [
       { value: "bind", label: "Bind this project to a Commons" },
+      {
+        value: "bind-libraries",
+        label: "Bind to a Commons using team libraries (global library model)",
+      },
       { value: "scaffold", label: "Scaffold a new Commons repo" },
     ],
     initialValue: "bind",
@@ -137,6 +143,19 @@ export const resolveInitPrompts = async (
       if (proceed !== true) return { cancelled: true };
     }
     return { cancelled: false, options: { scaffoldCommons: true } };
+  }
+
+  if (mode === "bind-libraries") {
+    // Only the commons URL is collected here — the library list itself is
+    // resolved after this returns, via init's own injected
+    // `selectLibraries` callback (detection needs the cloned commons repo,
+    // which only runInit's v2 flow has access to; see src/commands/init.ts).
+    const commonsUrl = await driver.text({
+      message: INIT_FIELD_DESC.commonsUrl,
+      validate: validateCommonsUrl,
+    });
+    if (driver.isCancel(commonsUrl)) return { cancelled: true };
+    return { cancelled: false, options: { commonsUrl: String(commonsUrl) } };
   }
 
   return resolveBindPrompts(provided, driver, dir);

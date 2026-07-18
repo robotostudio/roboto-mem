@@ -7,7 +7,7 @@ import type { Entry } from "./entry.js";
 import { parseEntry } from "./entry.js";
 import { exec } from "./exec.js";
 
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export type RepoSync =
   | { ok: true; dir: string; stale: boolean }
@@ -33,17 +33,19 @@ export const repoDirFor = (url: string, home: string): string => {
   return path.join(home, "repos", hash);
 };
 
+const isCloned = (dir: string): Promise<boolean> =>
+  readFile(path.join(dir, ".git", "HEAD")).then(
+    () => true,
+    () => false,
+  );
+
 export const ensureRepo = async (
   url: string,
   home: string,
 ): Promise<RepoSync> => {
   const dir = repoDirFor(url, home);
 
-  const exists = await readFile(path.join(dir, ".git", "HEAD"))
-    .then(() => true)
-    .catch(() => false);
-
-  if (!exists) {
+  if (!(await isCloned(dir))) {
     const cloneResult = await exec("git", ["clone", url, dir]);
     if (!cloneResult.ok) {
       return { ok: false, error: cloneResult.stderr };
@@ -59,6 +61,21 @@ export const ensureRepo = async (
   return pullResult.ok
     ? { ok: true, dir, stale: false }
     : { ok: true, dir, stale: true };
+};
+
+/** Resolves an already-synced local repo directory with no network I/O —
+ * used by the SessionStart hook, which only reads whatever a prior
+ * `roboto-mem sync` (or `init`) left on disk (global library model Phase 6:
+ * the hook no longer clones or pulls). See "Loading mechanism at
+ * SessionStart" in docs/design-specs/2026-07-17-global-library-model.md. */
+export const localRepo = async (
+  url: string,
+  home: string,
+): Promise<RepoSync> => {
+  const dir = repoDirFor(url, home);
+  return (await isCloned(dir))
+    ? { ok: true, dir, stale: false }
+    : { ok: false, error: "not synced yet — run roboto-mem sync" };
 };
 
 interface RawManifest {

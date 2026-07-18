@@ -45,10 +45,19 @@ describe("validatePromoteType", () => {
 });
 
 describe("main subCommands structure", () => {
-  it("has exactly 7 subcommand keys", () => {
+  it("has exactly 8 subcommand keys", () => {
     const keys = Object.keys(main.subCommands ?? {});
     expect(keys.sort()).toEqual(
-      ["digest", "init", "lint", "promote", "skill", "status", "sync"].sort(),
+      [
+        "digest",
+        "init",
+        "lint",
+        "migrate",
+        "promote",
+        "skill",
+        "status",
+        "sync",
+      ].sort(),
     );
   });
 });
@@ -78,6 +87,7 @@ describe("prompt module isolation (digest/sync/status/lint never prompt)", () =>
     "sync.ts",
     "status.ts",
     "lint.ts",
+    "migrate.ts",
   ])("%s never references a prompt module", async (file) => {
     const source = await fs.readFile(path.join(commandsDir, file), "utf8");
     for (const needle of forbidden) {
@@ -88,8 +98,15 @@ describe("prompt module isolation (digest/sync/status/lint never prompt)", () =>
   // The leaf-file check above would stay green even if someone wired prompts
   // straight into a defineCommand block in cli.ts (which legitimately
   // imports these modules for init/promote/skill add/skill promote) — so
-  // also lock down each of digest/sync/status/lint's OWN defineCommand block
+  // also lock down each of digest/status/lint's OWN defineCommand block
   // specifically, extracted from the shared cli.ts source.
+  //
+  // syncCmd is deliberately NOT in this list (unlike sync.ts's own leaf-file
+  // check above, which stays locked down): the global library model's sync
+  // collision confirm is real, TTY-gated interactivity for a manually-run
+  // command, orchestrated here exactly like init/promote/skill do — sync.ts
+  // itself stays prompt-free by only ever accepting a plain injected
+  // confirm callback (see SyncOptions.confirmLibrarySync).
   const cliPath = path.join(import.meta.dirname, "..", "src", "cli.ts");
   const forbiddenWiring = [
     "isInteractiveTty",
@@ -114,10 +131,10 @@ describe("prompt module isolation (digest/sync/status/lint never prompt)", () =>
   };
 
   it.each([
-    "syncCmd",
     "digestCmd",
     "lintCmd",
     "statusCmd",
+    "migrateCmd",
   ])("%s's defineCommand block in cli.ts never references prompt wiring", async (cmdName) => {
     const source = await fs.readFile(cliPath, "utf8");
     const block = commandBlockSource(source, cmdName);

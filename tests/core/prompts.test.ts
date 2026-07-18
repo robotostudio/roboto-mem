@@ -129,6 +129,21 @@ describe("buildInitOptions", () => {
     const result = buildInitOptions({}, { commonsUrl: "  " });
     expect(result.commonsUrl).toBeUndefined();
   });
+
+  it("splits a provided comma-separated libraries string (flags-only passthrough, never an answer)", () => {
+    const result = buildInitOptions({ libraries: "resend, next" }, {});
+    expect(result.libraries).toEqual(["resend", "next"]);
+  });
+
+  it("libraries stays undefined when not provided at all", () => {
+    const result = buildInitOptions({}, {});
+    expect(result.libraries).toBeUndefined();
+  });
+
+  it("an explicit empty libraries string still yields an empty array, not undefined", () => {
+    const result = buildInitOptions({ libraries: "" }, {});
+    expect(result.libraries).toEqual([]);
+  });
 });
 
 describe("planPromotePrompts", () => {

@@ -131,7 +131,7 @@ describe("status — newer-format clone", () => {
     await pushEntry(
       fixture,
       "memory.json",
-      JSON.stringify({ formatVersion: 2, budgets: {} }),
+      JSON.stringify({ formatVersion: 3, budgets: {} }),
     );
 
     // Re-sync to pull the updated memory.json

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   entryApplies,
   isValidScope,
+  LIBRARY_SCOPE_RE,
   sessionScopes,
 } from "../../src/core/scopes.js";
 
@@ -60,7 +61,7 @@ describe("sessionScopes", () => {
 });
 
 describe("entryApplies", () => {
-  it("returns true for scopes in the set and false otherwise", () => {
+  it("returns true for scopes in the set and false otherwise (legacy org/squad/stack/project — unchanged)", () => {
     const scopes = sessionScopes({
       project: "loggle",
       squads: ["web", "platform"],
@@ -73,5 +74,37 @@ describe("entryApplies", () => {
     expect(entryApplies("stack/sanity", scopes)).toBe(true);
     expect(entryApplies("stack/shopify", scopes)).toBe(false);
     expect(entryApplies("org", scopes)).toBe(true);
+  });
+
+  // Global library model (Phase 2): untagged entries always load.
+  it("returns true when entryScope is undefined (untagged = global)", () => {
+    expect(entryApplies(undefined, [])).toBe(true);
+    expect(entryApplies(undefined, ["resend"])).toBe(true);
+  });
+
+  // library:X matches only if X is declared.
+  it("returns true for library:X only when X is in the declared list", () => {
+    expect(entryApplies("library:resend", ["resend", "next"])).toBe(true);
+    expect(entryApplies("library:resend", ["next"])).toBe(false);
+    expect(entryApplies("library:resend", [])).toBe(false);
+  });
+
+  it("does not match a library scope against its own prefixed form", () => {
+    expect(entryApplies("library:resend", ["library:resend"])).toBe(false);
+  });
+});
+
+describe("LIBRARY_SCOPE_RE", () => {
+  it("matches library:{name} with a valid kebab-case name", () => {
+    expect(LIBRARY_SCOPE_RE.test("library:resend")).toBe(true);
+    expect(LIBRARY_SCOPE_RE.test("library:react-router")).toBe(true);
+  });
+
+  it("rejects legacy scope shapes and malformed names", () => {
+    expect(LIBRARY_SCOPE_RE.test("org")).toBe(false);
+    expect(LIBRARY_SCOPE_RE.test("squad/web")).toBe(false);
+    expect(LIBRARY_SCOPE_RE.test("library:")).toBe(false);
+    expect(LIBRARY_SCOPE_RE.test("library:Resend")).toBe(false);
+    expect(LIBRARY_SCOPE_RE.test("library:-resend")).toBe(false);
   });
 });
