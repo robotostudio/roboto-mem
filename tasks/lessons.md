@@ -25,3 +25,14 @@
 - **Background Bash + persisted cwd**: the shell's working directory persists across tool calls — a backgrounded `npm install` meant for a subdir ran at repo root (nearly polluted product deps). Always absolute-path or `cd <abs> && ...` inside the same command string.
 - **Demo worlds**: fixed literal path (/tmp/roboto-mem-demo) because CLI output displays URLs — fixed paths keep recordings reproducible. Rebuild before EVERY tape; tapes that mutate (promote, resilience) can't contaminate the next.
 - **Live-agent demos**: pin the model's answer to the injected context ("From the Team Memory digest only… quote exact entry names") or personal config bleeds in and muddies what the demo proves. Keep planted secrets obviously fake (AKIAIOSFODNN7EXAMPLE = AWS's documented example key).
+
+## VHS timing races (2026-07-20)
+
+- A fixed `Sleep` after a git-touching command (sync/clone/push helpers) is a
+  race: on a loaded machine the next `Type` interleaves with late output
+  (saw `ls $ROBOTO_MEM_HOsynced file://...` + stray `M%`). Floor: 3s after any
+  sync-ish beat, 5s after first-sync/materialize beats. Never trust a single
+  clean render — re-check frames on EVERY pass; the same tape can pass once
+  and garble the next run.
+- Frame-audit the produced hero too, not just raw clips: the hero surfaced
+  the tape-04 garble that the clip's own final frame scrolled past.

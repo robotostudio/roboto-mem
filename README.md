@@ -5,10 +5,12 @@ Team Memory for Claude Code — your team's Standards and Lessons, synced into e
 [![npm](https://img.shields.io/npm/v/roboto-mem)](https://www.npmjs.com/package/roboto-mem)
 [![license](https://img.shields.io/npm/l/roboto-mem)](LICENSE)
 
-<!-- TODO(release): asset URLs resolve once demo assets are uploaded to the v0.1.0 release -->
-![roboto-mem walkthrough](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/hero.gif)
+<!-- TODO(release): GIF URLs below point at v0.3.0 release assets. Upload via
+     `gh release upload` after the release exists; until then render locally
+     into docs/demos/{gif,mp4} (gitignored) and view from disk. -->
+![roboto-mem walkthrough](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/hero.gif)
 
-[Watch the walkthrough as MP4](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/hero.mp4)
+[Watch the walkthrough as MP4](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/hero.mp4)
 
 New to all of this? Start with **[the friendly guide](docs/INSTRUCTIONS.md)** — every command explained from zero, with a video for each step. No git expertise needed.
 
@@ -18,39 +20,39 @@ roboto-mem gives your team a Team Memory: a git-backed knowledge base synced int
 
 ## See it in action
 
-The digest your agent reads — Standards in full, overrides resolved, Lessons indexed:
+The digest your agent reads — global standards and library-scoped entries, each labeled with its scope:
 
-![digest](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/06-digest.gif)
+![library digest](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/05-library-digest.gif)
 
-A real session: Claude quotes the org Standard *and* the squad override it learned from Team Memory, then writes code that follows them:
+A real session: Claude cites Team Memory by name and writes code that follows it without being told:
 
-![live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/11-claude-live.gif)
+![live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/11-claude-live.gif)
 
 The secret scan stops a promotion, and `--force` doesn't change its mind:
 
-![secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/09-promote-scan.gif)
+![secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/08-promote-scan.gif)
 
 A teammate's merged Team Skill lands in `~/.claude/skills/` on your next sync — adopted once, everywhere:
 
-![team skills sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/14-skill-sync.gif)
+![team skills sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/13-skill-sync.gif)
 
-All thirteen clips, with instructions for every feature: [docs/demos](docs/demos/README.md).
+All fourteen clips, with instructions for every feature: [docs/demos](docs/demos/README.md).
 
 Prefer video? Captioned MP4s of every feature:
-[scaffold the Commons](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/01-init-commons.mp4) ·
-[bind a project](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/02-init-bind.mp4) ·
-[sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/03-sync.mp4) ·
-[offline resilience](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/04-sync-resilience.mp4) ·
-[status](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/05-status.mp4) ·
-[the digest](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/06-digest.mp4) ·
-[the hook](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/07-digest-hook.mp4) ·
-[promote](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/08-promote.mp4) ·
-[the secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/09-promote-scan.mp4) ·
-[lint](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/10-lint.mp4) ·
-[live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/11-claude-live.mp4) ·
-[two memory repos](https://github.com/robotostudio/roboto-mem/releases/download/v0.1.0/12-overlays.mp4) ·
-[skill add](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/13-skill-add.mp4) ·
-[team skills sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.2.0/14-skill-sync.mp4)
+[scaffold the Commons](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/01-init-commons.mp4) ·
+[init with libraries](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/02-init-libraries.mp4) ·
+[migrate](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/03-migrate.mp4) ·
+[library sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/04-library-sync.mp4) ·
+[the digest](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/05-library-digest.mp4) ·
+[the hook](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/06-digest-hook.mp4) ·
+[promote](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/07-promote.mp4) ·
+[the secret scan](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/08-promote-scan.mp4) ·
+[lint](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/09-lint.mp4) ·
+[promote a library](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/10-promote-library.mp4) ·
+[live Claude session](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/11-claude-live.mp4) ·
+[skill add](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/12-skill-add.mp4) ·
+[team skills sync](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/13-skill-sync.mp4) ·
+[offline resilience](https://github.com/robotostudio/roboto-mem/releases/download/v0.3.0/14-sync-resilience.mp4)
 
 ## Install
 

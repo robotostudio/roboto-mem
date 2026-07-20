@@ -1,6 +1,6 @@
 # The secret scan blocks promotion — and --force cannot bypass it.
-Output docs/demos/gif/09-promote-scan.gif
-Output docs/demos/mp4/09-promote-scan.mp4
+Output docs/demos/gif/08-promote-scan.gif
+Output docs/demos/mp4/08-promote-scan.mp4
 Source docs/demos/tapes/lib/style.tape
 Source docs/demos/tapes/lib/world.tape
 

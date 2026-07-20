@@ -54,7 +54,7 @@ const TitleCard: React.FC = () => {
             Team Memory for Claude Code — synced into every session
           </div>
           <div style={{ fontSize: 28, color: "#6f7390", marginTop: 14 }}>
-            Standards · Lessons · Promotion
+            Standards · Lessons · Libraries
           </div>
         </div>
       </AbsoluteFill>

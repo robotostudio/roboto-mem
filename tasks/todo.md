@@ -595,3 +595,85 @@ Gates: typecheck/lint/test(449/449)/build all green. Reverted dist/cli.mjs
 after two verification builds (manual citty-dispatch probing + a full
 tsdown build) — Phase 4 is source+tests only, no release intended, same
 precedent as Phase 1.
+
+## Demo video remake — v2 global library model — 2026-07-20
+
+Goal: rewrite tapes + Remotion studio so every demo reflects the v2 library model, then re-render all assets. No commits without explicit approval.
+
+### Plan
+- [x] Explore: v2 CLI surface (agent) + demo infra (agent)
+- [x] Rebuild dist/cli.mjs from branch head (post-CodeRabbit fixes)
+- [x] Scope decision: status/promote/skill are v1-only on this branch → keep clips 01-14 on the v1 world (re-render), ADD clips 15-19 for v2 (migrate, init-libraries, library-sync, library-digest, promote-library); recut hero to 01,16,17,18,08,10
+- [x] Agent: extend make-demo-world.sh (commons-v2 + acme-api v2-bound + teammate-update-library) + write tapes 15-19 + docs/demos/README.md sections (tape 16 uses the real interactive flow — bare `init` → mode select → URL → detect confirm; `--commons-url` on TTY routes to v1 prompts)
+- [x] Agent: studio clips.ts 15-19 + HERO_CLIP_IDS recut + TitleCard "Standards · Lessons · Libraries" (tsc + eslint clean)
+- [x] Render tapes via scripts/render-demos.sh; verified: 18/18 fresh, gifs ≤948K (cap 5MB), frame-checked 15/16/18 (v2) + 05 (v1 regression); 11-claude-live kept from manual recording
+- [x] Render studio via scripts/render-videos.sh; verified: 18 features + hero.mp4 (97.9s, 7.4MB) + hero.gif (7.3MB), all fresh
+- [x] Spot-check frames (hero @30s shows v2 bind segment; end card intact); docs/demos/README.md updated by tapes agent
+- [ ] Review section below; WAIT for commit approval
+
+## Panel redo — interactive-first, stale clips removed — 2026-07-20 (same session)
+
+Hrithik: "remove the old videos as these are stale ones and use the interactive
+features ? like re do the intire panel"
+
+New panel (01-14, one narrative): 01 scaffold (guided) · 02 bind w/ libraries
+(interactive) · 03 migrate · 04 library-sync · 05 library-digest · 06 hook ·
+07 promote (guided) · 08 scan · 09 lint · 10 promote-library · 11 claude-live
+(kept) · 12 skill-add (guided) · 13 skill-sync · 14 resilience (v2 world).
+REMOVED: 02-init-bind, 03-sync, 05-status (status errors on v2 — flagged as
+gap), 06-digest, 12-overlays (v2 = single commons).
+
+- [x] Renumber/rename tapes + fix Output lines (13 offline tapes)
+- [x] Purge stale rendered outputs (kept 11-claude-live gif/mp4 everywhere)
+- [x] Agent: interactive tapes 01/07/12 (pty-discovered prompt flows: scaffold
+      = 2 Downs on mode select; promote = 8 steps + recap + confirm, prefills
+      Ada Demo/today; skill add = source → skip skill → HEAD ref → author →
+      confirm), rework 06/14 onto v2 world, world trimmed (teammate-push,
+      add-overlay, client-memory removed; bash -n + pnpm lint clean)
+- [x] Agent: studio manifest rewrite (13 clips, hero = 01,02,04,05,07,10) — tsc + eslint clean, no stale ids
+- [x] Agent: docs/demos/README.md catalog rewrite + root README demo section
+      (14-clip panel, all v0.3.0 URLs, stale-id greps clean)
+- [x] Full render: 13 tapes + remotion features + hero; frame-check; summary
+
+### Review — panel redo (2026-07-20 evening)
+
+- Panel is now 14 clips (13 offline + live), interactive-first, one narrative.
+  Removed: 02-init-bind, 03-sync, 05-status, 06-digest, 12-overlays (+ their
+  outputs everywhere). 11-claude-live preserved (auth-gated manual recording).
+- Guided flows recorded for real: init scaffold (mode select), init bind w/
+  library detection, promote (8 prompts + recap + confirm), skill add.
+  Prompt sequences pty-discovered before scripting; option orders documented
+  in tasks agent report.
+- RACE FOUND + FIXED in full-pass verification: tape 04's 2s post-sync sleep
+  occasionally let the next Type interleave with sync output (caught in a
+  hero frame). Bumped post-sync sleeps across 04/06/07/13/14 (3-5s),
+  re-rendered, re-verified frames. Lesson: frame-check EVERY pass, not just
+  the first; sleeps after any git-touching command ≥3s.
+- World: overlay repo + teammate-push + add-overlay removed (unreferenced);
+  bash -n + pnpm lint clean. Studio: 13-clip manifest, hero = 01,02,04,05,
+  07,10 (tsc+eslint clean). READMEs: catalog rewritten, root demo section
+  on v0.3.0 URLs, stale-id greps clean.
+- KNOWN GAP flagged to Hrithik: `status` (and entry promote/skill cmds) are
+  v1-only — no status clip exists in the new panel; add one back when v2
+  status ships.
+- Nothing committed; render outputs gitignored; release upload manual.
+
+### Review — demo video remake (2026-07-20)
+
+Shipped (working tree only, nothing committed):
+- New tapes 15-19 covering the v2 library model: migrate (reviewed two-step config
+  upgrade), init-libraries (genuine interactive flow: bare `init` → mode select →
+  URL → detection confirm — `--commons-url` on a TTY routes to v1 prompts, found
+  and worked around), library-sync (materialize + teammate edit arrives, TTY diff
+  confirm), library-digest ([global]/[library:resend] labels, format-2 header),
+  promote-library (edit → branch → PR).
+- make-demo-world.sh: +commons-v2.git (formatVersion 2, 4 LIBRARY.md guides,
+  3 flat entries), +acme-api (v2-bound in-world), demo-app deps → next/react/resend,
+  +bin/teammate-update-library. v1 world byte-identical.
+- Studio: clips.ts +5 entries, hero recut 01→16→17→18→08→10, title card
+  "Standards · Lessons · Libraries". tsc + eslint clean.
+- Renders: 18/18 tapes fresh (gifs ≤948K), 18 captioned features, hero 97.9s.
+  Frame-verified 15/16/18 (v2), 05 (v1 regression), hero mid+end.
+- Constraint honored: status/promote/skill are v1-only on this branch → clips
+  01-14 stay on the v1 world; 11-claude-live preserved from manual recording.
+- Outputs gitignored as before; release upload remains manual at tag time.
