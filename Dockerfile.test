@@ -1,0 +1,29 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install git (needed for tests)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# Copy repo
+COPY . .
+
+# Install deps & build
+RUN npm install -g pnpm@10.32.1
+ENV CI=true
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+RUN pnpm typecheck
+RUN pnpm lint
+
+# Run tests
+RUN pnpm test
+
+# Create test environment
+RUN mkdir -p /test-env && cd /test-env
+
+# Test the CLI in a real environment
+ENV PATH="/app/dist:$PATH"
+WORKDIR /test-env
+
+CMD ["/bin/bash"]
