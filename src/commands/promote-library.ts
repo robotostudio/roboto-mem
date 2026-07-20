@@ -100,7 +100,20 @@ export const runPromoteLibrary = async (
   const gitCleanup = (): Promise<ExecResult> =>
     exec("git", ["checkout", "main"], { cwd: cloneDir });
 
-  const checkout = await exec("git", ["checkout", "-B", branch, "main"], {
+  // Base the branch on an existing remote promotion branch when one is still
+  // open — a second promotion before the first PR merges must build on the
+  // remote tip, not re-fork from main (which discards the earlier commit and
+  // gets rejected as a non-fast-forward push). Fall back to main otherwise.
+  await exec("git", ["fetch", "origin"], { cwd: cloneDir });
+  const remoteRef = `origin/${branch}`;
+  const remoteExists = await exec(
+    "git",
+    ["rev-parse", "--verify", "--quiet", remoteRef],
+    { cwd: cloneDir },
+  );
+  const base = remoteExists.ok ? remoteRef : "main";
+
+  const checkout = await exec("git", ["checkout", "-B", branch, base], {
     cwd: cloneDir,
   });
   if (!checkout.ok) return fail(`git checkout failed: ${checkout.stderr}`);

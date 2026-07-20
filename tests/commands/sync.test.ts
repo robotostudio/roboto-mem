@@ -267,6 +267,29 @@ describe("sync command — v2 (global library model)", () => {
     expect(result.output).toContain("skills: 1 materialized");
   });
 
+  it("skips materialization and exits 0 when the commons pull is stale (offline)", async () => {
+    const cwd = await makeDir();
+    const home = await makeDir();
+    const fixture = await makeV2CommonsFixture(await makeDir(), {
+      resend: { "LIBRARY.md": "v1" },
+    });
+    await writeV2Config(cwd, fixture.remoteUrl, ["resend"]);
+
+    // First sync clones + materializes normally.
+    expect((await runSync({ cwd, home })).exitCode).toBe(0);
+
+    // Make the remote unreachable → the next pull fails → ensureRepo reports
+    // ok+stale. Materialization must be skipped rather than run from the
+    // outdated clone.
+    await fs.rename(fixture.remoteUrl, `${fixture.remoteUrl}_gone`);
+
+    const result = await runSync({ cwd, home });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("stale (offline?)");
+    expect(result.output).not.toContain("libraries:");
+    expect(result.output).not.toContain("skills:");
+  });
+
   it("exits 1 mentioning init when config is missing (same as v1)", async () => {
     const cwd = await makeDir();
     const home = await makeDir();

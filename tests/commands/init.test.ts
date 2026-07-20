@@ -296,6 +296,34 @@ describe("init command", () => {
     );
   });
 
+  // Regression: an existing v1 config rebinding with a bare --commons-url and
+  // no --project must stay on the v1 path (updating commons, preserving the
+  // existing project) — not get misrouted to the v2 flow, which would reject
+  // it with "Config already exists". See init.ts's usesLibraryModel dispatch.
+  it("bind: existing v1 config + --commons-url (no --project) rebinds v1, preserving project", async () => {
+    const dir = await makeDir();
+    await saveConfig(dir, {
+      configVersion: 1,
+      commons: "git@x:y/old.git",
+      project: "loggle",
+      squads: ["web"],
+      overlays: [],
+      workspaces: {},
+    });
+
+    const result = await runInit({ dir, commonsUrl: "git@x:y/new.git" });
+
+    expect(result.exitCode).toBe(0);
+
+    const loaded = await loadConfig(dir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) throw new Error("config should be ok");
+    expect(loaded.config.configVersion).toBe(1);
+    expect(loaded.config.commons).toBe("git@x:y/new.git");
+    expect(loaded.config.project).toBe("loggle");
+    expect(loaded.config.squads).toEqual(["web"]);
+  });
+
   it("bind: output lists the full derived scope union", async () => {
     const dir = await makeDir();
     await fs.writeFile(

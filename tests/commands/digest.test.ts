@@ -4,7 +4,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runDigest } from "../../src/commands/digest.js";
 import { runSync } from "../../src/commands/sync.js";
 import { saveConfig } from "../../src/core/config.js";
-import { ensureRepo, repoDirFor } from "../../src/core/memory-repo.js";
+import {
+  ensureRepo,
+  repoDirFor,
+  writeSyncDate,
+} from "../../src/core/memory-repo.js";
 import {
   makeCommonsFixture,
   makeV2CommonsFixture,
@@ -266,6 +270,37 @@ Undeclared library — must not appear in the digest.`,
     expect(result.output).toContain("decision-framework");
     expect(result.output).toContain("resend-templates");
     expect(result.output).not.toContain("sanity-typegen");
+  });
+
+  // 7b-ii. Sync-date persistence: the hook reads a local clone without
+  // pulling, so the header must show the date `roboto-mem sync` last
+  // recorded (which may be days old) — not the run date — when `today` is
+  // not injected. See writeSyncDate/readSyncDate in core/memory-repo.ts.
+  it("v2 digest without injected today shows the persisted sync date, not the run date", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeV2CommonsFixture(tmp, {
+      resend: { "LIBRARY.md": "# Resend\nSummary." },
+    });
+    await fs.writeFile(
+      path.join(cwd, ".roboto-mem.json"),
+      JSON.stringify({
+        configVersion: 2,
+        commons: fixture.remoteUrl,
+        libraries: ["resend"],
+      }),
+      "utf8",
+    );
+    await sync(fixture.remoteUrl, home);
+    // Simulate a successful sync that happened days ago.
+    await writeSyncDate(fixture.remoteUrl, home, "2026-06-10");
+
+    // No `today` injected → the persisted date must win over todayString().
+    const result = await runDigest({ cwd, home });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("synced 2026-06-10");
   });
 
   // 7c. v2-shaped project config with no prior `roboto-mem sync` → the hook

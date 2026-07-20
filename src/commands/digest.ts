@@ -7,6 +7,7 @@ import {
   loadMemory,
   localRepo,
   memoryHome,
+  readSyncDate,
 } from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
@@ -89,7 +90,11 @@ const runDigestV2 = async (
     return hook ? hookResult(msg) : { exitCode: 1, output: msg };
   }
 
-  const syncedDate = today ?? todayString();
+  // The hook reads a local clone without pulling, so "today" is not the sync
+  // date — prefer the timestamp `roboto-mem sync` persisted on its last
+  // successful run, falling back to today only when none was ever recorded.
+  const syncedDate =
+    today ?? (await readSyncDate(config.commons, home)) ?? todayString();
 
   const digest = compileDigest({
     entries: commonsLoad.entries,
@@ -203,11 +208,13 @@ export const runDigest = async (
     Object.assign(allBudgets, overlayLoad.declaredBudgets);
   }
 
-  // Step 5: derive today's date for the header. The hook only ever reads an
-  // already-local clone (no live pull), so there is no per-run "stale"
-  // signal to fall back on here — `roboto-mem sync` is what keeps that
-  // clone fresh; see localRepo in core/memory-repo.ts.
-  const syncedDate = today ?? todayString();
+  // Step 5: resolve the header's sync date. The hook only ever reads an
+  // already-local clone (no live pull), so "today" is not the sync date —
+  // prefer the timestamp `roboto-mem sync` persisted on its last successful
+  // run (see writeSyncDate/readSyncDate in core/memory-repo.ts), falling back
+  // to today only when none was ever recorded.
+  const syncedDate =
+    today ?? (await readSyncDate(config.commons, home)) ?? todayString();
 
   // Step 6: compile
   const scopes = sessionScopes({

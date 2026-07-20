@@ -78,6 +78,47 @@ describe("buildMigratedConfig", () => {
     expect(migrated.futureKey).toEqual({ nested: true });
   });
 
+  it("strips the legacy stack/ prefix from workspace scopes into bare library names", () => {
+    const v1: RepoConfig = {
+      ...BASE_V1,
+      workspaces: {
+        "apps/web": ["stack/next", "stack/react"],
+        "apps/api": ["stack/nodejs", "stack/next"],
+      },
+    };
+    const migrated = buildMigratedConfig(v1, { ...v1 });
+    expect(migrated.libraries).toEqual(["next", "react", "nodejs"]);
+  });
+
+  it("dedupes prefixed and bare workspace values that resolve to the same library", () => {
+    const v1: RepoConfig = {
+      ...BASE_V1,
+      workspaces: { ".": ["stack/next", "next"] },
+    };
+    const migrated = buildMigratedConfig(v1, { ...v1 });
+    expect(migrated.libraries).toEqual(["next"]);
+  });
+
+  it("does not let a custom v1 `libraries` key clobber the derived libraries", () => {
+    const v1: RepoConfig = {
+      ...BASE_V1,
+      workspaces: { ".": ["stack/next"] },
+    };
+    const raw = { ...v1, libraries: ["hand-edited-garbage"] };
+    const migrated = buildMigratedConfig(v1, raw);
+    expect(migrated.libraries).toEqual(["next"]);
+  });
+
+  it("does not let a custom v1 `librariesLocal` key clobber the derived overlays", () => {
+    const v1: RepoConfig = {
+      ...BASE_V1,
+      overlays: ["git@example.com:org/shared.git"],
+    };
+    const raw = { ...v1, librariesLocal: ["hand-edited-garbage"] };
+    const migrated = buildMigratedConfig(v1, raw);
+    expect(migrated.librariesLocal).toEqual(["git@example.com:org/shared.git"]);
+  });
+
   it("always sets configVersion 2 on the output", () => {
     const migrated = buildMigratedConfig(BASE_V1, { ...BASE_V1 });
     expect(migrated.configVersion).toBe(2);

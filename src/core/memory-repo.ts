@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { glob } from "tinyglobby";
@@ -76,6 +76,41 @@ export const localRepo = async (
   return (await isCloned(dir))
     ? { ok: true, dir, stale: false }
     : { ok: false, error: "not synced yet — run roboto-mem sync" };
+};
+
+/** Sidecar recording the date of the last *successful, non-stale* sync for a
+ * commons/overlay clone — sits next to the clone dir under `home/repos`. The
+ * SessionStart digest reads a local clone without pulling, so the run date is
+ * not the sync date; this preserves the real "synced" date across hook runs
+ * instead of stamping "today" on a clone that may be days old. */
+const syncStampPath = (url: string, home: string): string =>
+  `${repoDirFor(url, home)}.synced-at`;
+
+/** Records `date` (YYYY-MM-DD) as the last successful sync for `url`.
+ * Best-effort — a write failure must never break `sync`. */
+export const writeSyncDate = async (
+  url: string,
+  home: string,
+  date: string,
+): Promise<void> => {
+  try {
+    await mkdir(path.join(home, "repos"), { recursive: true });
+    await writeFile(syncStampPath(url, home), date, "utf8");
+  } catch {
+    // best-effort — a blocked or unwritable repos dir must never crash sync
+  }
+};
+
+/** Reads the last successful sync date for `url`, or undefined if none was
+ * ever recorded (e.g. an older clone predating this stamp). */
+export const readSyncDate = async (
+  url: string,
+  home: string,
+): Promise<string | undefined> => {
+  const text = await readFile(syncStampPath(url, home), "utf8").catch(
+    () => undefined,
+  );
+  return text?.trim() || undefined;
 };
 
 interface RawManifest {

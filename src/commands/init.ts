@@ -368,16 +368,30 @@ const bindModeV2 = async (options: InitOptions): Promise<CommandResult> => {
   };
 };
 
-// Global library model: a project explicitly opting into the new schema
-// gives --commons-url without --project (v2 has no project concept at
-// all) — every existing v1 invocation always sets `project` (either via
-// flag or by rebinding from an already-v1-shaped file on disk), so this
-// never reroutes a single pre-existing test/usage. See docs/design-specs/
-// 2026-07-17-global-library-model.md's "Library Detection & Init Flow".
-const usesLibraryModel = (options: InitOptions): boolean =>
-  options.project === undefined && options.commonsUrl !== undefined;
+// Global library model: a project explicitly opting into the new schema gives
+// --commons-url without --project (v2 has no project concept at all). But a
+// bare --commons-url is also how a v1 project *rebinds* its commons, so the
+// dispatch can't route on flags alone — it must inspect the on-disk config:
+//
+//   - --project given            → always v1 (only v1 has a project concept)
+//   - no --commons-url           → v1 usage/error path (bindMode reports it)
+//   - --commons-url, existing v1 → v1 rebind (preserve the existing project)
+//   - --commons-url, otherwise   → v2 (fresh init, or bindModeV2's own
+//                                  "already exists" guard for a v2 file)
+//
+// This keeps TTY and non-interactive dispatch identical. See docs/design-
+// specs/2026-07-17-global-library-model.md's "Library Detection & Init Flow".
+const usesLibraryModel = async (options: InitOptions): Promise<boolean> => {
+  if (options.project !== undefined || options.commonsUrl === undefined) {
+    return false;
+  }
+  const existing = await loadConfig(options.dir);
+  return !existing.ok;
+};
 
 export const runInit = async (options: InitOptions): Promise<CommandResult> => {
   if (options.scaffoldCommons) return scaffoldMode(options.dir);
-  return usesLibraryModel(options) ? bindModeV2(options) : bindMode(options);
+  return (await usesLibraryModel(options))
+    ? bindModeV2(options)
+    : bindMode(options);
 };

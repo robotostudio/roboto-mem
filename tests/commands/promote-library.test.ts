@@ -142,6 +142,50 @@ describe("runPromoteLibrary", () => {
     expect(body).toContain("changed");
   });
 
+  it("re-promoting before the first PR merges updates the existing remote branch (no non-fast-forward)", async () => {
+    const fixture = await makeV2CommonsFixture(await makeDir(), {});
+    const home = await makeDir();
+    const librariesRoot = await makeDir();
+    await writeLocalLibrary(librariesRoot, "resend", { "LIBRARY.md": "v1" });
+    const gh = ghStubFactory();
+    const opts = {
+      cwd: await makeDir(),
+      name: "resend",
+      commonsUrl: fixture.remoteUrl,
+      author: "hrithik",
+      date: "2026-07-17",
+      home,
+      librariesRoot,
+      ghRunner: gh.run,
+    };
+
+    // First promote pushes library/resend to the remote.
+    expect((await runPromoteLibrary(opts)).exitCode).toBe(0);
+
+    // WITHOUT merging that PR, edit locally and promote again — the second
+    // push must fast-forward the existing remote branch, not fork from main
+    // (which would be rejected as non-fast-forward).
+    await writeLocalLibrary(librariesRoot, "resend", { "LIBRARY.md": "v2" });
+    const second = await runPromoteLibrary(opts);
+    expect(second.exitCode).toBe(0);
+    expect(second.output).toContain("pull/9");
+
+    // The existing remote branch now carries v2.
+    const worktree = await makeDir();
+    await exec("git", [
+      "clone",
+      "--branch",
+      "library/resend",
+      fixture.remoteUrl,
+      worktree,
+    ]);
+    const onBranch = await readFile(
+      path.join(worktree, "libraries", "resend", "LIBRARY.md"),
+      "utf8",
+    );
+    expect(onBranch).toBe("v2");
+  });
+
   it("fails when no local library exists at librariesRoot/<name>", async () => {
     const fixture = await makeV2CommonsFixture(await makeDir(), {});
     const result = await runPromoteLibrary({

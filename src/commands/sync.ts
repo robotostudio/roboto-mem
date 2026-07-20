@@ -6,8 +6,15 @@ import {
 } from "../core/library.js";
 import { formatReport, materializeSkills } from "../core/materialize.js";
 import type { RepoSync } from "../core/memory-repo.js";
-import { ensureRepo, localRepo, memoryHome } from "../core/memory-repo.js";
+import {
+  ensureRepo,
+  localRepo,
+  memoryHome,
+  writeSyncDate,
+} from "../core/memory-repo.js";
 import type { CommandResult } from "../core/types.js";
+
+const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
 export interface SyncedRepos {
   commons: RepoSync;
@@ -82,6 +89,12 @@ const runSyncV1 = async (
   const { home = memoryHome() } = options;
   const synced = await syncRepos(config, home);
 
+  // Record the real sync date so the SessionStart digest can show it instead
+  // of stamping "today" on a clone the hook only read (never pulled).
+  if (synced.commons.ok && !synced.commons.stale) {
+    await writeSyncDate(config.commons, home, todayIso());
+  }
+
   const lines: string[] = [lineForSync(config.commons, synced.commons)];
   for (const { url, sync } of synced.overlays) {
     lines.push(lineForSync(url, sync));
@@ -120,6 +133,16 @@ const runSyncV2 = async (
       output: `Cannot sync commons; check network and auth: ${commons.error}`,
     };
   }
+
+  // A failed fast-forward pull surfaces as `ok: true, stale: true` — never
+  // overwrite libraries/skills from that outdated snapshot (mirrors
+  // runSyncV1's `!stale` skills guard). Report the stale line, exit 0.
+  if (commons.stale) {
+    return { exitCode: 0, output: lineForSync(config.commons, commons) };
+  }
+
+  // Fresh pull — record the real sync date for the SessionStart digest header.
+  await writeSyncDate(config.commons, home, todayIso());
 
   const librariesReport = await materializeLibraries({
     commonsDir: commons.dir,
