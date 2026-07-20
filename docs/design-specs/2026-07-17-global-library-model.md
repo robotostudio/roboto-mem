@@ -42,36 +42,37 @@
 
 ```
 ~/.roboto-mem/
-├── libraries/
-│   ├── resend/
-│   │   ├── LIBRARY.md          ← 200–300 tokens (summary + paths)
-│   │   ├── docs/
-│   │   └── examples/
-│   ├── next/
-│   ├── auth0/
-│   └── ...
-└── repos/
-    ├── abc123def456/           ← sha12(commons-url)
-    │   ├── entries/
-    │   │   ├── stacks/next/...         ← migrated to frontmatter; removed during v1→v2
-    │   │   ├── squads/auth/...         ← migrated to frontmatter; removed during v1→v2
-    │   │   ├── projects/my-app/...     ← migrated to untagged; removed during v1→v2
-    │   │   ├── org/...                 ← migrated to untagged; removed during v1→v2
-    │   ├── libraries/
-    │   │   ├── resend/
-    │   │   ├── next/
-    │   │   └── ...
-    │   ├── skills/
-    │   ├── CHANGELOG.md
-    │   ├── FORMAT_VERSION              ← version of commons schema
-    │   └── memory.json
-    └── (only one commons per project; multiple projects on same machine have different URLs)
+├── repos/
+│   ├── abc123def456/           ← sha12(commons-url); raw commons git clone
+│   │   ├── libraries/                  ← raw commons checkout (git working tree)
+│   │   │   ├── resend/
+│   │   │   ├── next/
+│   │   │   └── ...
+│   │   ├── entries/
+│   │   │   ├── stacks/next/...         ← migrated to frontmatter; removed during v1→v2
+│   │   │   ├── squads/auth/...         ← migrated to frontmatter; removed during v1→v2
+│   │   │   ├── projects/my-app/...     ← migrated to untagged; removed during v1→v2
+│   │   │   ├── org/...                 ← migrated to untagged; removed during v1→v2
+│   │   ├── skills/
+│   │   ├── CHANGELOG.md
+│   │   ├── FORMAT_VERSION              ← version of commons schema
+│   │   └── memory.json
+│   └── (only one commons per project; multiple projects on same machine bind different
+│        URLs — each gets its own hash-keyed repos/<hash>/ clone)
+└── libraries/                  ← materialized (synced) libraries — FLAT and GLOBAL,
+    ├── resend/                    shared across every project/commons on this machine,
+    │   ├── LIBRARY.md              ← 200–300 tokens (summary + paths)
+    │   ├── docs/                keyed only by library name (see "Known Limitations":
+    │   └── examples/             one commons per machine, collision mitigated only by
+    ├── next/                      team namespacing, not by hash isolation)
+    ├── auth0/
+    └── ...
 
 ~/.config/roboto-mem/
 └── config.json          ← global defaults (init only)
 ```
 
-**One commons per project rule:** enforced by `.roboto-mem.json` config having a single `commons` string field. Multiple projects can bind different commons (stored in separate `repos/<hash>/` dirs), but each project has exactly one.
+**One commons per project rule:** enforced by `.roboto-mem.json` config having a single `commons` string field. Multiple projects can bind different commons (each commons' raw checkout stored in its own `repos/<hash>/` dir), but each project has exactly one. Materialized libraries, however, live under the single global `~/.roboto-mem/libraries/<name>/` path, not under `repos/<hash>/` — so two projects bound to different commons that each publish a library with the same name write to the same local path (last-sync-wins, no error). This is an accepted limitation (see "Known Limitations" below), not hash-isolated.
 
 Old `org/project/squads/` directory hierarchy is removed. `stacks/*`, `squads/*`, `projects/*` entry scopes become `library:*` or untagged.
 
@@ -437,7 +438,7 @@ New config (generated):
 - `workspaces` field maps workspace dirs to stack arrays: `{dir: [stacks]}`
 - Migrate reads the stack arrays directly (e.g., `["next", "react"]` from `apps/web`)
 - Union all stacks from all workspaces into `libraries` array (deduped)
-- E.g., if `apps/web` has `["next", "react"]` and `apps/api` has `["auth0", "nodejs"]`, result is `["next", "react", "auth0", "nodejs"]` (filtered to commons-available libs)
+- E.g., if `apps/web` has `["next", "react"]` and `apps/api` has `["auth0", "nodejs"]`, result is `["next", "react", "auth0", "nodejs"]` — the complete deduplicated union, independent of what the commons currently has under `libraries/` (see "Ordering" below)
 
 **What gets dropped:**
 - `project`, `squads`, `overlays` — removed (entry scopes migrate at commons-side, below)
@@ -543,9 +544,9 @@ New config (generated):
    - Team upgrades roboto-mem on own schedule
 
 8. **Two projects on same machine, different commons URLs**
-   - Handler: Both stored in `~/.roboto-mem/repos/<sha12(url1)>/` and `repos/<sha12(url2)>/` (hash-keyed isolation)
-   - No collision
-   - Mitigation: teams should namespace libs (e.g., `resend-v1`, `resend-v2`) if libraries conflict
+   - Handler: commons repos stored in `~/.roboto-mem/repos/<sha12(url1)>/` and `repos/<sha12(url2)>/` (hash-keyed isolation) — the raw commons checkouts never collide
+   - Materialized libraries are NOT hash-isolated: both land in the shared global `~/.roboto-mem/libraries/<name>/`. If both commons publish a library with the same name, whichever project last ran `sync` wins; no collision is detected or reported
+   - Accepted limitation, not a design goal — see "Known Limitations" (one commons per machine; collision mitigated only by team library-naming convention)
 
 9. **New CLI × v1 config**
    - Handler: new CLI rejects v1 config (nag to migrate); never tries to read v1 commons

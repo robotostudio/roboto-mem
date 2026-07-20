@@ -5,7 +5,11 @@ import { runDigest } from "../../src/commands/digest.js";
 import { runSync } from "../../src/commands/sync.js";
 import { saveConfig } from "../../src/core/config.js";
 import { ensureRepo, repoDirFor } from "../../src/core/memory-repo.js";
-import { makeCommonsFixture, pushEntry } from "../helpers/git.js";
+import {
+  makeCommonsFixture,
+  makeV2CommonsFixture,
+  pushEntry,
+} from "../helpers/git.js";
 import { tmpDirFactory } from "../helpers/tmp.js";
 
 const TODAY = "2026-06-12";
@@ -199,44 +203,76 @@ describe("digest command", () => {
   });
 
   // 7b. v2-shaped project config (configVersion 2 + commons + libraries, no v1
-  // fields) after a prior successful digest → old CLI (CONFIG_VERSION=1) must
-  // degrade to the newer-config stale path, not crash reading config.project
-  // off a shape that doesn't have it. See global library model spec, "Old CLI
-  // safe" success criterion.
-  it("v2 config (configVersion 2 + libraries) after prior good digest → STALE line + cached content, exit 0", async () => {
+  // fields) with a synced v2 commons → a freshly `init`ed v2 project must get
+  // a live digest (global entries always apply; library-scoped entries only
+  // for declared libraries), not the v1 loader's permanent "newer-config"
+  // stale fallback. See global library model spec, "new CLI × v2 config × v2
+  // commons (works)" success criterion.
+  it("v2 config (configVersion 2 + libraries) with synced v2 commons → live digest with global + declared-library entries", async () => {
     const cwd = await makeDir();
     const tmp = await makeDir();
     const home = await makeDir();
 
-    const fixture = await makeCommonsFixture(tmp);
-    await saveConfig(cwd, makeConfig(fixture.remoteUrl));
-    await sync(fixture.remoteUrl, home);
+    const fixture = await makeV2CommonsFixture(tmp);
+    await pushEntry(
+      fixture,
+      "entries/decision-framework.md",
+      `---
+description: Global decision framework
+type: standard
+author: hrithik
+date: 2026-06-01
+---
+Always weigh reversibility before committing.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/resend-templates.md",
+      `---
+description: Resend email templates
+type: standard
+author: hrithik
+date: 2026-06-01
+scope: library:resend
+---
+Use the shared template partials.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/sanity-typegen.md",
+      `---
+description: Sanity typegen flag
+type: lesson
+author: hrithik
+date: 2026-06-01
+scope: library:sanity
+---
+Undeclared library — must not appear in the digest.`,
+    );
 
-    // First successful digest to populate cache
-    const first = await runDigest({ cwd, home, today: TODAY });
-    expect(first.exitCode).toBe(0);
-
-    // Overwrite with a real v2-shaped config — no project/squads/workspaces
     await fs.writeFile(
       path.join(cwd, ".roboto-mem.json"),
       JSON.stringify({
         configVersion: 2,
         commons: fixture.remoteUrl,
-        libraries: ["resend", "next"],
+        libraries: ["resend"],
       }),
       "utf8",
     );
+    await sync(fixture.remoteUrl, home);
 
-    const second = await runDigest({ cwd, home, today: TODAY });
-    expect(second.exitCode).toBe(0);
-    expect(second.output).toContain("STALE");
-    expect(second.output).toContain("/mem-upgrade");
-    expect(second.output).toContain(TODAY); // cache.date
-    expect(second.output).toContain("# Team Memory"); // last-good digest body
+    const result = await runDigest({ cwd, home, today: TODAY });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("decision-framework");
+    expect(result.output).toContain("resend-templates");
+    expect(result.output).not.toContain("sanity-typegen");
   });
 
-  // 7c. v2-shaped project config with no prior cache + hook → exit 0, advisory
-  it("v2 config with no cache + hook → exit 0, advisory mentions /mem-upgrade", async () => {
+  // 7c. v2-shaped project config with no prior `roboto-mem sync` → the hook
+  // never touches the network (same network-free contract as v1), so it
+  // reports the same "run roboto-mem sync" advisory a v1 project would get
+  // from an un-synced commons, exit 0.
+  it("v2 config with no prior sync + hook → exit 0, advisory to run roboto-mem sync", async () => {
     const cwd = await makeDir();
     const home = await makeDir();
 
@@ -257,7 +293,7 @@ describe("digest command", () => {
     };
     expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
     expect(parsed.hookSpecificOutput.additionalContext).toContain(
-      "mem-upgrade",
+      "roboto-mem sync",
     );
   });
 

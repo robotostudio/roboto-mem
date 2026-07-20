@@ -1,7 +1,13 @@
 import { readCache, writeCache } from "../core/cache.js";
-import { loadConfig } from "../core/config.js";
+import type { RepoConfigV2 } from "../core/config.js";
+import { loadConfig, loadConfigV2 } from "../core/config.js";
 import { compileDigest } from "../core/digest.js";
-import { FORMAT_VERSION, loadMemory, memoryHome } from "../core/memory-repo.js";
+import {
+  FORMAT_VERSION,
+  loadMemory,
+  localRepo,
+  memoryHome,
+} from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
 import { VERSION } from "../core/version.js";
@@ -49,10 +55,72 @@ const staleResult = async (
   return { exitCode: 1, output: STALE_ADVISORY };
 };
 
+/** Global library model: the v2 (library) digest path — global (untagged)
+ * entries always apply, library-scoped entries apply only if declared, both
+ * already implemented generically by entryApplies/compileDigest (Phase 2),
+ * so config.libraries doubles as the v2 "session scopes" list. Same
+ * network-free, cache-first contract as the v1 hook path below (localRepo,
+ * not ensureRepo) — see "Loading mechanism at SessionStart" in
+ * docs/design-specs/2026-07-17-global-library-model.md. */
+const runDigestV2 = async (
+  config: RepoConfigV2,
+  options: {
+    cwd: string;
+    hook: boolean;
+    home: string;
+    nag?: string;
+    today?: string;
+  },
+): Promise<CommandResult> => {
+  const { cwd, hook, home, nag, today } = options;
+
+  const commons = await localRepo(config.commons, home);
+  if (!commons.ok) {
+    const msg = `Team Memory unavailable: ${commons.error}`;
+    return hook ? hookResult(msg) : { exitCode: 1, output: msg };
+  }
+
+  const commonsLoad = await loadMemory(commons.dir);
+  if (!commonsLoad.ok) {
+    if (commonsLoad.reason === "newer-format") {
+      return staleResult(hook, home, cwd);
+    }
+    const msg = `Team Memory unavailable: ${commonsLoad.detail}`;
+    return hook ? hookResult(msg) : { exitCode: 1, output: msg };
+  }
+
+  const syncedDate = today ?? todayString();
+
+  const digest = compileDigest({
+    entries: commonsLoad.entries,
+    sessionScopes: config.libraries,
+    budgets: commonsLoad.budgets,
+    meta: {
+      toolVersion: VERSION,
+      formatVersion: FORMAT_VERSION,
+      syncedDate,
+      nag,
+    },
+  });
+
+  await writeCache(home, cwd, { date: syncedDate, digest });
+
+  return hook ? hookResult(digest) : { exitCode: 0, output: digest };
+};
+
 export const runDigest = async (
   options: DigestOptions,
 ): Promise<CommandResult> => {
   const { cwd, hook = false, home = memoryHome(), nag, today } = options;
+
+  // Global library model: a genuine v2 config wins outright (mirrors
+  // sync.ts's runSync dispatch) — anything that ISN'T one (missing,
+  // v1-shaped, invalid, too-new) falls through to the v1 flow below
+  // completely unchanged.
+  const v2Result = await loadConfigV2(cwd);
+  if (v2Result.ok) {
+    return runDigestV2(v2Result.config, { cwd, hook, home, nag, today });
+  }
 
   // Step 1: load config
   const configResult = await loadConfig(cwd);

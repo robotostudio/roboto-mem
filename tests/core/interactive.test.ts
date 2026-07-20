@@ -329,6 +329,54 @@ describe("resolveInitPrompts", () => {
     const result = await resolveInitPrompts({}, driver, dir);
     expect(result).toEqual({ cancelled: true });
   });
+
+  // Regression guard for the explicit --libraries flag: it must route
+  // through the same commons-url-only v2 flow as "bind-libraries" above,
+  // never resolveBindPrompts's legacy project/squad flow — that fallthrough
+  // was the v1-fallthrough bug this fixes.
+  it("--libraries flag with no commonsUrl: asks only the commons URL, never mode-select or project/squads", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver(["https://github.com/org/commons.git"]);
+    const result = await resolveInitPrompts(
+      { libraries: "resend,next" },
+      driver,
+      dir,
+    );
+    expect(result).toEqual({
+      cancelled: false,
+      options: {
+        commonsUrl: "https://github.com/org/commons.git",
+        libraries: ["resend", "next"],
+      },
+    });
+  });
+
+  it("--libraries + --commons-url both provided: never touches the driver", async () => {
+    const dir = await tmp.make();
+    const result = await resolveInitPrompts(
+      { libraries: "resend", commonsUrl: "https://github.com/org/commons.git" },
+      untouchableDriver,
+      dir,
+    );
+    expect(result).toEqual({
+      cancelled: false,
+      options: {
+        commonsUrl: "https://github.com/org/commons.git",
+        libraries: ["resend"],
+      },
+    });
+  });
+
+  it("cancelling the commonsUrl prompt under --libraries → cancelled:true", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([CANCEL]);
+    const result = await resolveInitPrompts(
+      { libraries: "resend" },
+      driver,
+      dir,
+    );
+    expect(result).toEqual({ cancelled: true });
+  });
 });
 
 describe("resolvePromotePrompts", () => {
