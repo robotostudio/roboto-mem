@@ -601,6 +601,7 @@ precedent as Phase 1.
 Goal: rewrite tapes + Remotion studio so every demo reflects the v2 library model, then re-render all assets. No commits without explicit approval.
 
 ### Plan
+
 - [x] Explore: v2 CLI surface (agent) + demo infra (agent)
 - [x] Rebuild dist/cli.mjs from branch head (post-CodeRabbit fixes)
 - [x] Scope decision: status/promote/skill are v1-only on this branch → keep clips 01-14 on the v1 world (re-render), ADD clips 15-19 for v2 (migrate, init-libraries, library-sync, library-digest, promote-library); recut hero to 01,16,17,18,08,10
@@ -677,3 +678,36 @@ Shipped (working tree only, nothing committed):
 - Constraint honored: status/promote/skill are v1-only on this branch → clips
   01-14 stay on the v1 world; 11-claude-live preserved from manual recording.
 - Outputs gitignored as before; release upload remains manual at tag time.
+
+## PR #15 review fixes — CodeRabbit + independent review — 2026-07-22
+
+Goal: apply the reviewed fixes, verify, re-review the diff, push to feat/global-library-model (push approved this session).
+
+### Plan
+
+- [x] promote-library: stale-clone guard + librariesRoot derived from home (+tests)
+- [x] library.ts: planLibrary failures land in report.failed instead of crashing runSync (+test)
+- [x] interactive/prompts: trim commons URL (v1+v2) + wire loadGlobalConfig prefill (+tests)
+- [x] init: reword phantom `update-libraries` message; reject `--project`+`--libraries` (+tests)
+- [x] migrate: always-on note that legacy-scoped entries drop until commons retag (+digest test)
+- [x] lint: invalid-ref message lists all 3 accepted forms; library-detect filters non-grammar dir names (+tests)
+- [x] config.test: wire ROBOTO_MEM_CONFIG_HOME so precedence tests can fail
+- [x] Dockerfile.test: non-root, --no-install-recommends, roboto-mem symlink; new .dockerignore (image build verified on colima: full suite green as node user, symlink works)
+- [x] README: v2-first quickstart, migrate + promote-library rows, library scoping section
+- [x] Verify: typecheck + lint + full suite; review-agent pass on the combined diff; commit + push
+
+### Review
+
+All 8 fix groups + Docker hardening + README pass applied by parallel agents on
+disjoint files; adversarial review agent verdict: ship-ready (2 LOW wording items,
+both fixed: documented the EACCES test's non-root requirement; corrected the v2
+override wording in README). Gates: typecheck clean, biome clean, 537/537 tests
+(526 -> 537, +11). Dockerfile.test verified end-to-end on colima: image builds,
+full suite passes as USER node, `roboto-mem --help` works via the new
+/usr/local/bin symlink (one fix found in-build: /app was root-owned from WORKDIR;
+now chowned). Remaining before merge (manual): upload renumbered demo assets to
+the release tag (README links 404 until then). Follow-ups (not this PR): dynamic
+commons default branch (main hardcoded in promote/skill/promote-library,
+pre-existing); TTY `init --commons-url` alone still routes to guided v1 prompts.
+
+Declined after verification (pushed back on CodeRabbit): digest libraries-are-URLs (false premise — bare names everywhere), init dispatch misroute (false premise — v1 loader refuses configVersion 2), rm-before-rename swap (mirrors shipped copySkill; derived cache, next sync restores), commons-namespaced library cache (documented accepted limitation in the design spec). Follow-up ticket, not this PR: resolve commons default branch dynamically — `main` is hardcoded identically in promote.ts, skill.ts, and promote-library.ts (pre-existing).

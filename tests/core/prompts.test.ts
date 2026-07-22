@@ -130,6 +130,11 @@ describe("buildInitOptions", () => {
     expect(result.commonsUrl).toBeUndefined();
   });
 
+  it("trims a padded commonsUrl that passes straight through from provided (no prompt answer)", () => {
+    const result = buildInitOptions({ commonsUrl: "  git@x:y/z.git  " }, {});
+    expect(result.commonsUrl).toBe("git@x:y/z.git");
+  });
+
   it("splits a provided comma-separated libraries string (flags-only passthrough, never an answer)", () => {
     const result = buildInitOptions({ libraries: "resend, next" }, {});
     expect(result.libraries).toEqual(["resend", "next"]);

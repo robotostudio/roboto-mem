@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CONFIG_FILE,
   CONFIG_LEGACY_FIELDS_MESSAGE,
@@ -503,12 +503,29 @@ describe("global config (loadGlobalConfig)", () => {
 
 describe("config precedence — project overrides global; missing project = silence", () => {
   const tmp = tmpDirFactory("rm-config-precedence-");
-  afterEach(tmp.cleanup);
   const makeDir = tmp.make;
+  // Shared across beforeEach/afterEach (never reassigned, only .value
+  // mutated) so each test can point ROBOTO_MEM_CONFIG_HOME at its own
+  // globalDir and still leave the env var exactly as it found it.
+  const priorConfigHome: { value: string | undefined } = { value: undefined };
+
+  beforeEach(() => {
+    priorConfigHome.value = process.env.ROBOTO_MEM_CONFIG_HOME;
+  });
+
+  afterEach(async () => {
+    await tmp.cleanup();
+    if (priorConfigHome.value === undefined) {
+      delete process.env.ROBOTO_MEM_CONFIG_HOME;
+    } else {
+      process.env.ROBOTO_MEM_CONFIG_HOME = priorConfigHome.value;
+    }
+  });
 
   it("loadConfig/loadConfigV2 never fall back to a populated global config (silence holds)", async () => {
     const projectDir = await makeDir();
     const globalDir = await makeDir();
+    process.env.ROBOTO_MEM_CONFIG_HOME = globalDir;
     await fs.writeFile(
       path.join(globalDir, GLOBAL_CONFIG_FILE),
       JSON.stringify({ commons: "https://github.com/team/commons" }),
@@ -527,6 +544,7 @@ describe("config precedence — project overrides global; missing project = sile
   it("project config wins even when global declares a different commons URL", async () => {
     const projectDir = await makeDir();
     const globalDir = await makeDir();
+    process.env.ROBOTO_MEM_CONFIG_HOME = globalDir;
     await fs.writeFile(
       path.join(globalDir, GLOBAL_CONFIG_FILE),
       JSON.stringify({ commons: "https://github.com/team/global-commons" }),

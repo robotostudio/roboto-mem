@@ -35,26 +35,38 @@ const planLibrary = async (
   home: string,
   name: string,
 ): Promise<LibraryPlan> => {
-  const commonsLibDir = path.join(commonsLibrariesDir(commonsDir), name);
-  if (!(await exists(commonsLibDir))) {
+  try {
+    const commonsLibDir = path.join(commonsLibrariesDir(commonsDir), name);
+    if (!(await exists(commonsLibDir))) {
+      return {
+        ok: false,
+        name,
+        error: `library not found in commons (expected libraries/${name}/)`,
+      };
+    }
+
+    const localDir = path.join(librariesHome(home), name);
+    const localExists = await exists(localDir);
+    const diff = await diffDirs(
+      localExists ? localDir : undefined,
+      commonsLibDir,
+    );
+
+    return {
+      ok: true,
+      entry: { name, commonsDir: commonsLibDir, localDir, diff },
+    };
+  } catch (e: unknown) {
+    // diffDirs can reject on an unreadable dir/file or an fs race — never let
+    // that escape the Promise.all in materializeLibraries; land it in
+    // report.failed like every other per-library failure (mirrors the
+    // applyLibrary catch below).
     return {
       ok: false,
       name,
-      error: `library not found in commons (expected libraries/${name}/)`,
+      error: e instanceof Error ? e.message : String(e),
     };
   }
-
-  const localDir = path.join(librariesHome(home), name);
-  const localExists = await exists(localDir);
-  const diff = await diffDirs(
-    localExists ? localDir : undefined,
-    commonsLibDir,
-  );
-
-  return {
-    ok: true,
-    entry: { name, commonsDir: commonsLibDir, localDir, diff },
-  };
 };
 
 /** Atomically replaces localDir's contents with commonsDir's (tmp-then-rename,

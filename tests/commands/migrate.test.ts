@@ -104,6 +104,20 @@ describe("migrate — v1 with overlays", () => {
   });
 });
 
+describe("migrate — legacy scope digest warning", () => {
+  it("always warns that legacy-scoped entries won't appear in the digest until commons retagging, even with no squads/overlays", async () => {
+    const cwd = await mkTmp();
+    await saveConfig(cwd, { ...V1, squads: [], overlays: [] });
+
+    const result = await runMigrate({ cwd });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("Notes:");
+    expect(result.output).toMatch(/legacy scopes/);
+    expect(result.output).toContain('"library:<name>"');
+  });
+});
+
 describe("migrate — output loads as a real v2 config after rename", () => {
   it("loadConfigV2 accepts the migrated output verbatim (v1-only)", async () => {
     const cwd = await mkTmp();

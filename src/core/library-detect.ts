@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { SCOPE_ID_RE } from "./scopes.js";
 
 /**
  * Hardcoded npm-scope → library-name aliases (global library model, init
@@ -31,7 +32,11 @@ export interface LibraryDetectionResult {
  * detection step 4). Returns `undefined` when the directory is entirely
  * absent (caller surfaces "Commons has no libraries. Team must create
  * v2-format commons."); an empty array means the directory exists but the
- * team hasn't added any libraries yet — not an error.
+ * team hasn't added any libraries yet — not an error. Directory names that
+ * fail SCOPE_ID_RE are dropped: such a name could never match a
+ * `library:<name>` scope tag (LIBRARY_SCOPE_RE) or pass promote's own
+ * SCOPE_ID_RE gate, so it would only be dead weight in init's selection
+ * list and config.libraries.
  */
 export const listCommonsLibraries = async (
   commonsDir: string,
@@ -41,7 +46,7 @@ export const listCommonsLibraries = async (
   }).catch(() => undefined);
   if (!entries) return undefined;
   return entries
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && SCOPE_ID_RE.test(e.name))
     .map((e) => e.name)
     .sort((a, b) => a.localeCompare(b));
 };

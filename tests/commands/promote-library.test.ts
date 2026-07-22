@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runPromoteLibrary } from "../../src/commands/promote-library.js";
@@ -186,6 +186,38 @@ describe("runPromoteLibrary", () => {
     expect(onBranch).toBe("v2");
   });
 
+  it("refuses to promote from a stale commons clone (offline pull failure), no branch/PR side effects", async () => {
+    const fixture = await makeV2CommonsFixture(await makeDir(), {});
+    const home = await makeDir();
+    const librariesRoot = await makeDir();
+    await writeLocalLibrary(librariesRoot, "resend", { "LIBRARY.md": "v1" });
+    const gh = ghStubFactory();
+    const opts = {
+      cwd: await makeDir(),
+      name: "resend",
+      commonsUrl: fixture.remoteUrl,
+      author: "hrithik",
+      date: "2026-07-17",
+      home,
+      librariesRoot,
+      ghRunner: gh.run,
+    };
+
+    // First promote clones commons into `home`.
+    expect((await runPromoteLibrary(opts)).exitCode).toBe(0);
+    const callsAfterFirstPromote = gh.calls.length;
+
+    // Make the remote unreachable → the next pull fails → ensureRepo reports
+    // ok+stale (same offline simulation as sync.test.ts's stale test).
+    await rename(fixture.remoteUrl, `${fixture.remoteUrl}_gone`);
+
+    const result = await runPromoteLibrary(opts);
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("stale");
+    expect(result.output).not.toContain("Branch:");
+    expect(gh.calls).toHaveLength(callsAfterFirstPromote);
+  });
+
   it("fails when no local library exists at librariesRoot/<name>", async () => {
     const fixture = await makeV2CommonsFixture(await makeDir(), {});
     const result = await runPromoteLibrary({
@@ -230,6 +262,29 @@ describe("runPromoteLibrary", () => {
     });
 
     expect(result.exitCode).toBe(0);
+  });
+
+  it("resolves the local library under <home>/libraries when librariesRoot is omitted", async () => {
+    const fixture = await makeV2CommonsFixture(await makeDir(), {});
+    const home = await makeDir();
+    await writeLocalLibrary(path.join(home, "libraries"), "resend", {
+      "LIBRARY.md": "# Resend\nSummary.",
+    });
+    const gh = ghStubFactory();
+
+    const result = await runPromoteLibrary({
+      cwd: await makeDir(),
+      name: "resend",
+      commonsUrl: fixture.remoteUrl,
+      author: "hrithik",
+      date: "2026-07-17",
+      home,
+      ghRunner: gh.run,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).not.toContain("No local library");
+    expect(result.output).toContain("pull/9");
   });
 
   it("fails with a clear message when neither --commons-url nor a v2 config is available", async () => {

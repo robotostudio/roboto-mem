@@ -447,7 +447,7 @@ describe("init command — v2 (global library model)", () => {
     if (loaded.ok) expect(loaded.config.libraries).toEqual([]);
   });
 
-  it("config already exists: exits 1 mentioning update-libraries, does not overwrite", async () => {
+  it("config already exists: exits 1 with an edit-or-delete message, does not overwrite", async () => {
     const dir = await makeDir();
     const existingContent = JSON.stringify(
       {
@@ -467,8 +467,9 @@ describe("init command — v2 (global library model)", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.output).toContain("Config already exists");
-    expect(result.output).toContain("roboto-mem update-libraries");
+    expect(result.output).toBe(
+      "Config already exists. Edit .roboto-mem.json to change libraries, or delete it and re-run roboto-mem init.",
+    );
     expect(await fs.readFile(path.join(dir, CONFIG_FILE), "utf8")).toBe(
       existingContent,
     );
@@ -540,6 +541,22 @@ describe("init command — v2 (global library model)", () => {
     expect(result.exitCode).toBe(1);
     expect(result.output).toMatch(/--commons-url/i);
     expect(result.output).toMatch(/--project/i);
+  });
+
+  it("--libraries combined with --project: exits 1 naming both flags, writes no config", async () => {
+    const dir = await makeDir();
+
+    const result = await runInit({
+      dir,
+      commonsUrl: "https://example.com/commons.git",
+      project: "app",
+      libraries: ["next", "react"],
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("--libraries");
+    expect(result.output).toContain("--project");
+    await expect(fs.access(path.join(dir, CONFIG_FILE))).rejects.toThrow();
   });
 
   it("an empty-string commons-url reaches the v2 flow's own usage message (project still undefined)", async () => {

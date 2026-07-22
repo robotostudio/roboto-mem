@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import type { PromoteOptions, PromoteResult } from "../commands/promote.js";
 import { runPromote } from "../commands/promote.js";
-import { loadConfig } from "./config.js";
+import { globalConfigHome, loadConfig, loadGlobalConfig } from "./config.js";
 import { todayYMD } from "./entry.js";
 import type { PromptDriver } from "./prompt-driver.js";
 import { runPromptSteps } from "./prompt-driver.js";
@@ -95,8 +95,10 @@ const resolveBindPrompts = async (
 
 /** Resolves the v2 (library model) commons URL only — shared by an explicit
  * `--libraries` flag and the mode-select's "bind-libraries" answer below.
- * The library list itself is resolved later via init's own injected
- * `selectLibraries` callback, never here. */
+ * Prefills the prompt from the global config's `commons` default (silently
+ * skipped when that config is missing/invalid — see config.ts's
+ * loadGlobalConfig contract). The library list itself is resolved later via
+ * init's own injected `selectLibraries` callback, never here. */
 const resolveLibraryCommonsUrl = async (
   provided: InitProvided,
   driver: PromptDriver,
@@ -104,12 +106,14 @@ const resolveLibraryCommonsUrl = async (
   if (provided.commonsUrl !== undefined) {
     return { cancelled: false, commonsUrl: provided.commonsUrl };
   }
+  const global = await loadGlobalConfig(globalConfigHome());
   const commonsUrl = await driver.text({
     message: INIT_FIELD_DESC.commonsUrl,
+    initialValue: global.ok ? global.config.commons : undefined,
     validate: validateCommonsUrl,
   });
   if (driver.isCancel(commonsUrl)) return { cancelled: true };
-  return { cancelled: false, commonsUrl: String(commonsUrl) };
+  return { cancelled: false, commonsUrl: String(commonsUrl).trim() };
 };
 
 export const resolveInitPrompts = async (

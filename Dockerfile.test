@@ -2,15 +2,25 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install git (needed for tests)
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install git (needed for tests) — root-only step
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Copy repo
-COPY . .
+# Install pnpm globally — root-only step
+RUN npm install -g pnpm@10.32.1
+
+# Copy repo, owned by the non-root `node` user shipped in this base image
+COPY --chown=node:node . .
+
+# Scratch dir for manual CLI testing, owned by node. /app itself was created
+# root-owned by WORKDIR (COPY --chown only covers the copied content), and
+# pnpm must write node_modules into it as the node user.
+RUN mkdir -p /test-env && chown node:node /test-env /app
+
+# Drop root before installing deps, building, or running tests
+USER node
+ENV CI=true
 
 # Install deps & build
-RUN npm install -g pnpm@10.32.1
-ENV CI=true
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
 RUN pnpm typecheck
@@ -19,11 +29,12 @@ RUN pnpm lint
 # Run tests
 RUN pnpm test
 
-# Create test environment
-RUN mkdir -p /test-env && cd /test-env
+# Expose the CLI under its real bin name (package.json: roboto-mem -> ./dist/cli.mjs)
+USER root
+RUN ln -s /app/dist/cli.mjs /usr/local/bin/roboto-mem
+USER node
 
-# Test the CLI in a real environment
-ENV PATH="/app/dist:$PATH"
+# Drop into the scratch dir for manual CLI testing
 WORKDIR /test-env
 
 CMD ["/bin/bash"]

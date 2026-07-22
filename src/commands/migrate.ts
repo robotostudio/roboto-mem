@@ -23,6 +23,7 @@ export const MIGRATED_CONFIG_FILE = `${CONFIG_FILE}.migrated`;
 
 const migrationNotes = (v1: RepoConfig): string[] =>
   [
+    `entries still carrying legacy scopes (org, squad/*, stack/*, project/*) won't appear in the digest until the commons itself is migrated to untagged or "library:<name>" tags`,
     v1.squads.length > 0 &&
       `squad names (${v1.squads.join(", ")}) were folded into "libraries" verbatim — verify each matches (or will match, once commons-side migration retags entries) an actual library`,
     v1.overlays.length > 0 &&

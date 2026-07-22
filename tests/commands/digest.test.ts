@@ -272,6 +272,83 @@ Undeclared library — must not appear in the digest.`,
     expect(result.output).not.toContain("sanity-typegen");
   });
 
+  // 7b-i. Designed v2 drop: legacy-scoped commons entries (org, squad/*,
+  // stack/*, project/*) are neither untagged nor `library:{name}` — under v2,
+  // config.libraries is the whole session-scopes list, so entryApplies never
+  // matches them. Locks in the behavior migrate.ts's always-present note
+  // warns about until the commons itself is retagged. See entryApplies in
+  // src/core/scopes.ts.
+  it("v2 config: commons entries still carrying legacy org/stack scopes are dropped; untagged and declared-library entries still load", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeV2CommonsFixture(tmp);
+    await pushEntry(
+      fixture,
+      "entries/org/org-standard.md",
+      `---
+description: Org-wide standard
+type: standard
+author: hrithik
+date: 2026-06-01
+---
+Applies org-wide under v1.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/stacks/next/next-lesson.md",
+      `---
+description: Next.js lesson
+type: lesson
+author: hrithik
+date: 2026-06-01
+---
+Applies to the next stack under v1.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/untagged-note.md",
+      `---
+description: Untagged note
+type: standard
+author: hrithik
+date: 2026-06-01
+---
+Always applies.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/resend-templates.md",
+      `---
+description: Resend email templates
+type: standard
+author: hrithik
+date: 2026-06-01
+scope: library:resend
+---
+Use the shared template partials.`,
+    );
+
+    await fs.writeFile(
+      path.join(cwd, ".roboto-mem.json"),
+      JSON.stringify({
+        configVersion: 2,
+        commons: fixture.remoteUrl,
+        libraries: ["resend"],
+      }),
+      "utf8",
+    );
+    await sync(fixture.remoteUrl, home);
+
+    const result = await runDigest({ cwd, home, today: TODAY });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("untagged-note");
+    expect(result.output).toContain("resend-templates");
+    expect(result.output).not.toContain("org-standard");
+    expect(result.output).not.toContain("next-lesson");
+  });
+
   // 7b-ii. Sync-date persistence: the hook reads a local clone without
   // pulling, so the header must show the date `roboto-mem sync` last
   // recorded (which may be days old) — not the run date — when `today` is

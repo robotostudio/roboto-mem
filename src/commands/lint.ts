@@ -77,7 +77,7 @@ const overrideFindings = (entries: Entry[]): string[] => {
     const parsed = parseRef(entry.overrides);
     if (!parsed) {
       findings.push(
-        `${entry.file}: invalid override ref format "${entry.overrides}" -- expected <scope>/<kebab-name>`,
+        `${entry.file}: invalid override ref format "${entry.overrides}" -- expected <kebab-name>, <scope>/<kebab-name>, or library:<lib>/<kebab-name>`,
       );
       continue;
     }

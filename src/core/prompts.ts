@@ -215,7 +215,7 @@ export const buildInitOptions = (
   const squadsRaw = pick("squads", provided.squads, answers);
   return {
     project: pick("project", provided.project, answers),
-    commonsUrl: pick("commonsUrl", provided.commonsUrl, answers),
+    commonsUrl: pick("commonsUrl", provided.commonsUrl, answers)?.trim(),
     squads: squadsRaw ? splitSquads(squadsRaw) : undefined,
     scaffoldCommons:
       "scaffoldCommons" in answers

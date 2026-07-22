@@ -158,6 +158,14 @@ const selectLibraries = async (input: {
 
   const added = await driver.text({
     message: "Add more? (comma-separated names, or press enter)",
+    validate: (value) => {
+      const unknown = splitSquads(value).filter(
+        (name) => !input.available.includes(name),
+      );
+      return unknown.length > 0
+        ? `Not in commons: ${unknown.join(", ")}`
+        : undefined;
+    },
   });
   if (driver.isCancel(added)) return undefined;
   const removed = await driver.text({

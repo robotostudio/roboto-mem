@@ -51,6 +51,20 @@ describe("listCommonsLibraries", () => {
     const result = await listCommonsLibraries(commonsDir);
     expect(result).toEqual(["resend"]);
   });
+
+  it("filters out directory names that violate the shared identifier grammar (SCOPE_ID_RE)", async () => {
+    const commonsDir = await makeDir();
+    await mkdir(path.join(commonsDir, "libraries", "resend"), {
+      recursive: true,
+    });
+    for (const badName of ["My Lib", "UPPER", "-bad", "under_score"]) {
+      await mkdir(path.join(commonsDir, "libraries", badName), {
+        recursive: true,
+      });
+    }
+    const result = await listCommonsLibraries(commonsDir);
+    expect(result).toEqual(["resend"]);
+  });
 });
 
 describe("scanPackageDeps", () => {

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -196,6 +196,35 @@ describe("materializeLibraries", () => {
         error: "library not found in commons (expected libraries/sanity/)",
       },
     ]);
+  });
+
+  it("catches an unexpected planLibrary error (unreadable commons file) into report.failed instead of crashing the run; other libraries still process", async () => {
+    const commonsDir = await tmp.make();
+    const home = await tmp.make();
+    await seedCommons(commonsDir, {
+      resend: { "LIBRARY.md": "hi" },
+      broken: { "LIBRARY.md": "hi" },
+    });
+    // chmod 000 makes diffDirs' readFile reject with EACCES while hashing
+    // this file — a real fs-race-shaped failure, not the "missing" branch.
+    // Requires a non-root runner (root bypasses DAC and reads the file
+    // anyway) — true on macOS dev, CI runners, and Dockerfile.test's
+    // USER node.
+    await chmod(
+      path.join(commonsDir, "libraries", "broken", "LIBRARY.md"),
+      0o000,
+    );
+
+    const report = await materializeLibraries({
+      commonsDir,
+      home,
+      libraryNames: ["resend", "broken"],
+    });
+
+    expect(report.synced).toEqual(["resend"]);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0]?.name).toBe("broken");
+    expect(report.failed[0]?.error).toMatch(/EACCES/);
   });
 });
 

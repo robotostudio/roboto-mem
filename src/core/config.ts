@@ -283,8 +283,8 @@ export const loadConfigV2 = async (dir: string): Promise<ConfigV2Result> => {
 /** Writes a fresh v2 config (global library model init, Phase 3). Unlike
  * `saveConfig`, there is no `preserve` param — a v2 config is only ever
  * written once for a brand-new project (init's own "config already exists"
- * gate blocks a second write; refreshing a v2 config's libraries is
- * `roboto-mem update-libraries`'s job, not init's). */
+ * gate blocks a second write; refreshing a v2 config's libraries will be a
+ * future update-libraries command's job, not init's). */
 export const saveConfigV2 = async (
   dir: string,
   config: RepoConfigV2,

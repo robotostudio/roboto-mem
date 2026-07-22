@@ -51,7 +51,7 @@ export const runPromoteLibrary = async (
     author,
     date,
     home = memoryHome(),
-    librariesRoot = librariesHome(memoryHome()),
+    librariesRoot = librariesHome(home),
     ghRunner = defaultGhRunner,
   } = options;
 
@@ -82,6 +82,15 @@ export const runPromoteLibrary = async (
   const repoSync = await ensureRepo(commonsUrl, home);
   if (!repoSync.ok) {
     return fail(`Failed to sync commons repo: ${repoSync.error}`);
+  }
+  // A failed fast-forward pull surfaces as `ok: true, stale: true` — refuse
+  // to build a branch/PR from that outdated snapshot (mirrors runSyncV2's
+  // stale guard in src/commands/sync.ts: "never overwrite from that outdated
+  // snapshot").
+  if (repoSync.stale) {
+    return fail(
+      "Commons clone is stale (offline or pull failed) — cannot promote from an outdated base. Check network and retry.",
+    );
   }
   const cloneDir = repoSync.dir;
   const relDir = `libraries/${name}`;

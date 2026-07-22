@@ -286,11 +286,11 @@ const bindModeV2 = async (options: InitOptions): Promise<CommandResult> => {
   const { dir, home = memoryHome() } = options;
 
   // Step 1: a pre-existing .roboto-mem.json (any version/shape) blocks a
-  // fresh v2 write — refreshing an existing binding is update-libraries's
-  // job, not init's.
+  // fresh v2 write — refreshing an existing binding would be a future
+  // update-libraries command's job, not init's.
   if (await exists(path.join(dir, CONFIG_FILE))) {
     return fail(
-      "Config already exists. Run `roboto-mem update-libraries` to refresh.",
+      "Config already exists. Edit .roboto-mem.json to change libraries, or delete it and re-run roboto-mem init.",
     );
   }
 
@@ -391,6 +391,11 @@ const usesLibraryModel = async (options: InitOptions): Promise<boolean> => {
 
 export const runInit = async (options: InitOptions): Promise<CommandResult> => {
   if (options.scaffoldCommons) return scaffoldMode(options.dir);
+  if (options.libraries !== undefined && options.project !== undefined) {
+    return fail(
+      "--libraries cannot be combined with --project: libraries bind the v2 library model; project/squads are the legacy v1 binding. Pass one or the other.",
+    );
+  }
   return (await usesLibraryModel(options))
     ? bindModeV2(options)
     : bindMode(options);

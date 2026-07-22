@@ -83,19 +83,23 @@ For a team repo, add this to `.claude/settings.json` so teammates are prompted t
 ## Quickstart
 
 1. Scaffold a Commons: run `roboto-mem init --commons` in a new repo and push it.
-2. Bind a project: `roboto-mem init --commons-url <git-url> --project <id> --squads <ids>`.
+2. Bind a project: `roboto-mem init --commons-url <git-url>`. Libraries are detected from `package.json`; a bare `roboto-mem init` offers the same via "Bind to a Commons using team libraries".
 3. Session starts now inject the Digest.
 4. `/promote` your first Lesson.
+
+The legacy v1 binding — `roboto-mem init --commons-url <git-url> --project <id> --squads <ids>` — still works; `roboto-mem migrate` upgrades a v1 config to the library model.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `roboto-mem init --commons` | Scaffold a new Commons: entry directories, CODEOWNERS, token-free CI, vendored CLI |
-| `roboto-mem init --commons-url <url> --project <id> --squads <ids>` | Bind a repo to the Commons; stacks are detected from `package.json` |
+| `roboto-mem init --commons-url <url>` | Bind a repo to the Commons; libraries are detected from `package.json` (legacy v1: add `--project <id> --squads <ids>`) |
+| `roboto-mem migrate` | Migrate a v1 config to v2 — writes `.roboto-mem.json.migrated` for review, never touches the original |
 | `roboto-mem sync` | Clone the Commons on first run, fast-forward after |
 | `roboto-mem digest` | Print the scope-filtered Digest (`--hook` wraps it in the SessionStart envelope) |
 | `roboto-mem promote --scope <s> --type <standard\|lesson> --name <n> …` | Validate → dedupe → secret-scan → branch → PR |
+| `roboto-mem promote library <name>` | Open a reviewed Commons PR from your local `~/.roboto-mem/libraries/<name>` edits |
 | `roboto-mem lint <dir>` | The CI gate: validate every entry, redacted findings, exit 1 on problems |
 | `roboto-mem status` | Binding, session scopes, entry counts, sync freshness |
 | `roboto-mem skill add <owner>/<repo> [--skill <n>]` | Vendor a store skill into the Commons pinned at a commit — validate → secret-scan → PR |
@@ -132,7 +136,9 @@ Flags you provide are never re-asked. Non-TTY runs (CI, hooks, scripts) never pr
 
 ## How scoping works
 
-Entries live at a Scope: `org`, `squad/<id>`, `stack/<id>`, or `project/<id>`. A repo's session scopes come from its binding (project, squads) plus detection (`react` in `package.json` → `stack/react`, `typescript` → `stack/typescript`), and the Digest includes exactly the entries whose scope applies. A squad Standard can explicitly override an org Standard — the Digest then replaces the org entry's body with a pointer to the override, so your agent never reads two contradicting rules.
+An Entry with no `scope:` frontmatter is global — it's in the Digest everywhere, always. An Entry tagged `scope: library:<name>` loads only in projects that declare that library; `init` detects yours from `package.json` against the Commons' `libraries/`. So `library:resend` guidance never reaches a repo that doesn't send email.
+
+The legacy v1 scoping still works for v1-bound projects: Entries live at a Scope — `org`, `squad/<id>`, `stack/<id>`, or `project/<id>` — a repo's session scopes come from its binding (project, squads) plus detection (`react` in `package.json` → `stack/react`, `typescript` → `stack/typescript`), and the Digest includes exactly the entries whose scope applies. In both models a narrower Standard can explicitly override a broader one — a library Standard over a global one, a squad Standard over an org one — and the Digest then replaces the overridden entry's body with a pointer to the override, so your agent never reads two contradicting rules.
 
 ## Team Skills
 
@@ -141,6 +147,8 @@ Team Skills are reusable agent workflows — `SKILL.md` directories living at `s
 ## When the network is down
 
 A dead VPN or a git-host outage doesn't take sessions down. With a cached copy present, `sync` reports `stale (offline?)` and the Digest keeps working from the last good state, honestly labelled. Only a missing cache is a real failure.
+
+Non-interactive syncs (CI, scripts) auto-pull library updates without the confirm prompt, so promote local library edits (`roboto-mem promote library <name>`) before running scripted syncs.
 
 ## The trust contract
 
