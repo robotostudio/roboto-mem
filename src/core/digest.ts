@@ -20,14 +20,20 @@ export const estimateTokens = (s: string): number => Math.ceil(s.length / 4);
 
 // ─── Scope ordering ───────────────────────────────────────────────────────────
 
-const scopeRank = (scope: string): [number, string] => {
-  if (scope === "org") return [0, ""];
-  if (scope.startsWith("squad/")) return [1, scope];
-  if (scope.startsWith("stack/")) return [2, scope];
-  return [3, scope]; // project/*
+// Global library model: untagged (scope undefined) entries rank first —
+// see docs/design-specs/2026-07-17-global-library-model.md.
+const scopeRank = (scope: string | undefined): [number, string] => {
+  if (!scope) return [0, ""];
+  if (scope === "org") return [1, ""];
+  if (scope.startsWith("squad/")) return [2, scope];
+  if (scope.startsWith("stack/")) return [3, scope];
+  return [4, scope]; // project/*, library:*, etc.
 };
 
-const compareScopes = (a: string, b: string): number => {
+const compareScopes = (
+  a: string | undefined,
+  b: string | undefined,
+): number => {
   const [ra, sa] = scopeRank(a);
   const [rb, sb] = scopeRank(b);
   return ra !== rb ? ra - rb : sa.localeCompare(sb);
@@ -41,6 +47,16 @@ const sortEntries = (entries: Entry[]): Entry[] =>
     return sc !== 0 ? sc : a.name.localeCompare(b.name);
   });
 
+// ─── Scope/ref helpers (global library model) ─────────────────────────────────
+// Untagged entries use a bare `{name}` override ref (no prefix) and render
+// under a "global" label — see docs/design-specs/2026-07-17-global-library-model.md.
+
+export const entryRef = (e: Entry): string =>
+  e.scope ? `${e.scope}/${e.name}` : e.name;
+
+export const scopeKey = (scope: string | undefined): string =>
+  scope ?? "global";
+
 // ─── Override resolution ──────────────────────────────────────────────────────
 // Only Standards can be override targets (lessons are excluded).
 // overrideMap: ref ("scope/name") → the overriding Entry
@@ -53,10 +69,8 @@ interface OverrideResolution {
 }
 
 const resolveOverrides = (standards: Entry[]): OverrideResolution => {
-  // Build lookup: "scope/name" → entry (standards only)
-  const lookup = new Map<string, Entry>(
-    standards.map((e) => [`${e.scope}/${e.name}`, e]),
-  );
+  // Build lookup: entry ref ("scope/name", or bare "name" if untagged) → entry (standards only)
+  const lookup = new Map<string, Entry>(standards.map((e) => [entryRef(e), e]));
 
   const overrideMap = new Map<string, Entry>();
   const suppressedRefs = new Set<string>();
@@ -85,14 +99,14 @@ const renderStandards = (
   const lines: string[] = [];
 
   for (const e of standards) {
-    const ref = `${e.scope}/${e.name}`;
+    const ref = entryRef(e);
 
     if (suppressedRefs.has(ref)) {
       const overrider = resolution.overrideMap.get(ref);
-      lines.push(`### [${e.scope}] ${e.name}`);
+      lines.push(`### [${scopeKey(e.scope)}] ${e.name}`);
       lines.push("");
       lines.push(
-        `> ${ref} is overridden for this repo by ${overrider?.scope}/${overrider?.name}.`,
+        `> ${ref} is overridden for this repo by ${overrider ? entryRef(overrider) : "unknown"}.`,
       );
       lines.push("");
       continue;
@@ -100,7 +114,7 @@ const renderStandards = (
 
     // Normal (possibly overriding) entry
     const overridesLabel = e.overrides ? ` — overrides ${e.overrides}` : "";
-    lines.push(`### [${e.scope}] ${e.name}${overridesLabel}`);
+    lines.push(`### [${scopeKey(e.scope)}] ${e.name}${overridesLabel}`);
     lines.push("");
     lines.push(e.body);
     lines.push("");
@@ -118,24 +132,25 @@ const renderStandards = (
 };
 
 const renderLesson = (e: Entry): string =>
-  `- [${e.scope}] ${e.name} — ${e.description} (${e.file}, ${e.date})`;
+  `- [${scopeKey(e.scope)}] ${e.name} — ${e.description} (${e.file}, ${e.date})`;
 
 // ─── Budget warnings ──────────────────────────────────────────────────────────
 
 const budgetWarnings = (
   scopeTexts: Map<string, string>,
   budgets: Record<string, number>,
-  orderedScopes: string[],
+  orderedScopes: (string | undefined)[],
 ): string => {
   const warnings: string[] = [];
   for (const scope of orderedScopes) {
-    const text = scopeTexts.get(scope) ?? "";
+    const key = scopeKey(scope);
+    const text = scopeTexts.get(key) ?? "";
     if (!text) continue;
     const tokens = estimateTokens(text);
-    const cap = budgets[scope] ?? budgets.default ?? 2000;
+    const cap = budgets[key] ?? budgets.default ?? 2000;
     if (tokens > cap) {
       warnings.push(
-        `> WARNING: scope ${scope} exceeds its budget (${tokens} > ${cap} tokens). Prune or split entries.`,
+        `> WARNING: scope ${key} exceeds its budget (${tokens} > ${cap} tokens). Prune or split entries.`,
       );
     }
   }
@@ -183,19 +198,22 @@ export const compileDigest = (input: DigestInput): string => {
   const scopeChunks = new Map<string, string[]>();
 
   for (const e of standards) {
-    const ref = `${e.scope}/${e.name}`;
+    const ref = entryRef(e);
+    const overrider = resolution.overrideMap.get(ref);
     const contribution = resolution.suppressedRefs.has(ref)
-      ? `> ${ref} is overridden for this repo by ${resolution.overrideMap.get(ref)?.scope}/${resolution.overrideMap.get(ref)?.name}.`
+      ? `> ${ref} is overridden for this repo by ${overrider ? entryRef(overrider) : "unknown"}.`
       : e.body;
-    const chunks = scopeChunks.get(e.scope) ?? [];
+    const key = scopeKey(e.scope);
+    const chunks = scopeChunks.get(key) ?? [];
     chunks.push(contribution);
-    scopeChunks.set(e.scope, chunks);
+    scopeChunks.set(key, chunks);
   }
 
   for (const e of lessons) {
-    const chunks = scopeChunks.get(e.scope) ?? [];
+    const key = scopeKey(e.scope);
+    const chunks = scopeChunks.get(key) ?? [];
     chunks.push(renderLesson(e));
-    scopeChunks.set(e.scope, chunks);
+    scopeChunks.set(key, chunks);
   }
 
   const scopeTextMap = new Map<string, string>(

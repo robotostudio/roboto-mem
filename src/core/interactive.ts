@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import type { PromoteOptions, PromoteResult } from "../commands/promote.js";
 import { runPromote } from "../commands/promote.js";
-import { loadConfig } from "./config.js";
+import { globalConfigHome, loadConfig, loadGlobalConfig } from "./config.js";
 import { todayYMD } from "./entry.js";
 import type { PromptDriver } from "./prompt-driver.js";
 import { runPromptSteps } from "./prompt-driver.js";
@@ -10,6 +10,7 @@ import {
   buildPromoteOptions,
   buildSkillAddOptions,
   buildSkillPromoteOptions,
+  INIT_FIELD_DESC,
   type InitPromptResult,
   type InitProvided,
   listPersonalSkillNames,
@@ -25,6 +26,7 @@ import {
   type SkillAddProvided,
   type SkillPromotePromptResult,
   type SkillPromoteProvided,
+  validateCommonsUrl,
 } from "./prompts.js";
 
 export type Resolved<T> =
@@ -91,6 +93,29 @@ const resolveBindPrompts = async (
   };
 };
 
+/** Resolves the v2 (library model) commons URL only — shared by an explicit
+ * `--libraries` flag and the mode-select's "bind-libraries" answer below.
+ * Prefills the prompt from the global config's `commons` default (silently
+ * skipped when that config is missing/invalid — see config.ts's
+ * loadGlobalConfig contract). The library list itself is resolved later via
+ * init's own injected `selectLibraries` callback, never here. */
+const resolveLibraryCommonsUrl = async (
+  provided: InitProvided,
+  driver: PromptDriver,
+): Promise<{ cancelled: true } | { cancelled: false; commonsUrl: string }> => {
+  if (provided.commonsUrl !== undefined) {
+    return { cancelled: false, commonsUrl: provided.commonsUrl };
+  }
+  const global = await loadGlobalConfig(globalConfigHome());
+  const commonsUrl = await driver.text({
+    message: INIT_FIELD_DESC.commonsUrl,
+    initialValue: global.ok ? global.config.commons : undefined,
+    validate: validateCommonsUrl,
+  });
+  if (driver.isCancel(commonsUrl)) return { cancelled: true };
+  return { cancelled: false, commonsUrl: String(commonsUrl).trim() };
+};
+
 export const resolveInitPrompts = async (
   provided: InitProvided,
   driver: PromptDriver,
@@ -101,6 +126,20 @@ export const resolveInitPrompts = async (
   // flag is deliberate intent, unlike a guided answer that can flip modes.
   if (provided.scaffoldCommons === true) {
     return { cancelled: false, options: { scaffoldCommons: true } };
+  }
+
+  // An explicit --libraries flag is unambiguous v2 intent — route it through
+  // the same commons-url-only flow as the mode-select's "bind-libraries"
+  // answer, never resolveBindPrompts's legacy project/squad flow (which
+  // would fill in `project` and silently flip runInit's usesLibraryModel
+  // dispatch back to v1).
+  if (provided.libraries !== undefined) {
+    const resolved = await resolveLibraryCommonsUrl(provided, driver);
+    if (resolved.cancelled) return { cancelled: true };
+    return {
+      cancelled: false,
+      options: buildInitOptions(provided, { commonsUrl: resolved.commonsUrl }),
+    };
   }
 
   const bindImplied =
@@ -119,6 +158,10 @@ export const resolveInitPrompts = async (
     message: "How should this directory be set up?",
     options: [
       { value: "bind", label: "Bind this project to a Commons" },
+      {
+        value: "bind-libraries",
+        label: "Bind to a Commons using team libraries (global library model)",
+      },
       { value: "scaffold", label: "Scaffold a new Commons repo" },
     ],
     initialValue: "bind",
@@ -137,6 +180,16 @@ export const resolveInitPrompts = async (
       if (proceed !== true) return { cancelled: true };
     }
     return { cancelled: false, options: { scaffoldCommons: true } };
+  }
+
+  if (mode === "bind-libraries") {
+    // Only the commons URL is collected here — the library list itself is
+    // resolved after this returns, via init's own injected
+    // `selectLibraries` callback (detection needs the cloned commons repo,
+    // which only runInit's v2 flow has access to; see src/commands/init.ts).
+    const resolved = await resolveLibraryCommonsUrl(provided, driver);
+    if (resolved.cancelled) return { cancelled: true };
+    return { cancelled: false, options: { commonsUrl: resolved.commonsUrl } };
   }
 
   return resolveBindPrompts(provided, driver, dir);

@@ -1,17 +1,53 @@
+import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { rename, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ensureRepo,
+  FORMAT_VERSION,
   loadMemory,
+  localRepo,
   memoryHome,
+  repoDirFor,
 } from "../../src/core/memory-repo.js";
 import { makeCommonsFixture, pushEntry } from "../helpers/git.js";
 import { tmpDirFactory } from "../helpers/tmp.js";
 
 const tmp = tmpDirFactory("roboto-mem-test-");
 const mkTmp = tmp.make;
+
+// ---------------------------------------------------------------------------
+// Test 0: repoDirFor — repos/<sha12(url)>/ clone-path scheme (global library
+// model spec: hash-keyed isolation so multiple projects/commons on one
+// machine never collide; verified here, no new code — see design spec
+// docs/design-specs/2026-07-17-global-library-model.md)
+// ---------------------------------------------------------------------------
+describe("repoDirFor", () => {
+  it("returns home/repos/<first-12-hex-chars-of-sha256(url)>", () => {
+    const home = "/fake/home/.roboto-mem";
+    const url = "https://github.com/team/commons";
+    const expectedHash = createHash("sha256")
+      .update(url)
+      .digest("hex")
+      .slice(0, 12);
+    expect(repoDirFor(url, home)).toBe(path.join(home, "repos", expectedHash));
+    expect(expectedHash).toHaveLength(12);
+  });
+
+  it("produces different dirs for different urls (hash-keyed isolation)", () => {
+    const home = "/fake/home/.roboto-mem";
+    const a = repoDirFor("https://github.com/team/commons-a", home);
+    const b = repoDirFor("https://github.com/team/commons-b", home);
+    expect(a).not.toBe(b);
+  });
+
+  it("produces the same dir for the same url across calls (deterministic)", () => {
+    const home = "/fake/home/.roboto-mem";
+    const url = "https://github.com/team/commons";
+    expect(repoDirFor(url, home)).toBe(repoDirFor(url, home));
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Test 1: first ensureRepo clones
@@ -118,6 +154,74 @@ describe("ensureRepo — clone failure", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Test 4b: localRepo — network-free repo resolution (global library model
+// Phase 6: SessionStart no longer clones/pulls; it only reads whatever a
+// prior `ensureRepo` call — via `roboto-mem sync`/`init` — left on disk. See
+// "Loading mechanism at SessionStart" in
+// docs/design-specs/2026-07-17-global-library-model.md.
+// ---------------------------------------------------------------------------
+describe("localRepo — not yet synced", () => {
+  afterEach(tmp.cleanup);
+
+  it("returns ok:false without touching the network or creating the dir", async () => {
+    const home = await mkTmp();
+    const dir = repoDirFor("https://example.test/never-synced.git", home);
+
+    const result = await localRepo(
+      "https://example.test/never-synced.git",
+      home,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.length).toBeGreaterThan(0);
+
+    // Never attempted a clone — the repo dir must not exist.
+    await expect(fs.access(dir)).rejects.toThrow();
+  });
+});
+
+describe("localRepo — already synced", () => {
+  afterEach(tmp.cleanup);
+
+  it("returns ok:true, stale:false, same dir as repoDirFor, after a prior ensureRepo", async () => {
+    const tmp = await mkTmp();
+    const home = await mkTmp();
+    const fixture = await makeCommonsFixture(tmp);
+
+    const synced = await ensureRepo(fixture.remoteUrl, home);
+    expect(synced.ok).toBe(true);
+
+    const result = await localRepo(fixture.remoteUrl, home);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.stale).toBe(false);
+    expect(result.dir).toBe(repoDirFor(fixture.remoteUrl, home));
+    const stat = await fs.stat(path.join(result.dir, "memory.json"));
+    expect(stat.isFile()).toBe(true);
+  });
+
+  it("keeps reading the local clone even after the remote becomes unreachable (no pull attempted)", async () => {
+    const tmp = await mkTmp();
+    const home = await mkTmp();
+    const fixture = await makeCommonsFixture(tmp);
+
+    await ensureRepo(fixture.remoteUrl, home);
+
+    // Remote disappears — a network-based resolver (ensureRepo) would mark
+    // this stale:true after a failed pull. localRepo must not even try.
+    await rename(fixture.remoteUrl, `${fixture.remoteUrl}.gone`);
+
+    const result = await localRepo(fixture.remoteUrl, home);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.stale).toBe(false);
+    const stat = await fs.stat(path.join(result.dir, "memory.json"));
+    expect(stat.isFile()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Test 5: loadMemory on fixture clone — entries, scope, budgets
 // ---------------------------------------------------------------------------
 describe("loadMemory — valid fixture clone", () => {
@@ -197,11 +301,11 @@ Body without description.`,
 describe("loadMemory — newer format version", () => {
   afterEach(tmp.cleanup);
 
-  it("returns ok:false, reason newer-format, formatVersion 2", async () => {
+  it("returns ok:false, reason newer-format, formatVersion 3", async () => {
     const dir = await mkTmp();
     await writeFile(
       path.join(dir, "memory.json"),
-      JSON.stringify({ formatVersion: 2, budgets: {} }),
+      JSON.stringify({ formatVersion: 3, budgets: {} }),
       "utf8",
     );
 
@@ -210,6 +314,35 @@ describe("loadMemory — newer format version", () => {
     if (result.ok) return;
     expect(result.reason).toBe("newer-format");
     if (result.reason !== "newer-format") return;
+    expect(result.formatVersion).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 7b: global library model — FORMAT_VERSION bump (Phase 2). New CLI
+// (FORMAT_VERSION=2) accepts a v2-declared commons; old CLI (FORMAT_VERSION=1,
+// already shipped/frozen) rejecting a v2 commons via this exact
+// `formatVersion > FORMAT_VERSION` gate was already proven in Phase 1 —
+// see docs/design-specs/2026-07-17-global-library-model.md, "Old CLI safe".
+// ---------------------------------------------------------------------------
+describe("loadMemory — FORMAT_VERSION is 2 (global library model)", () => {
+  afterEach(tmp.cleanup);
+
+  it("FORMAT_VERSION constant equals 2", () => {
+    expect(FORMAT_VERSION).toBe(2);
+  });
+
+  it("accepts a commons that declares formatVersion 2 (current version, not newer)", async () => {
+    const dir = await mkTmp();
+    await writeFile(
+      path.join(dir, "memory.json"),
+      JSON.stringify({ formatVersion: 2, budgets: {} }),
+      "utf8",
+    );
+
+    const result = await loadMemory(dir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.formatVersion).toBe(2);
   });
 });

@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   PromoteOptions,
   PromoteResult,
@@ -294,6 +294,171 @@ describe("resolveInitPrompts", () => {
     const { driver } = fakeDriver(["bind", "loggle", CANCEL]);
     const result = await resolveInitPrompts({}, driver, dir);
     expect(result).toEqual({ cancelled: true });
+  });
+
+  it("bare invocation + bind-libraries selected: asks only the commons URL, no project/squads", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([
+      "bind-libraries",
+      "https://github.com/org/commons.git",
+    ]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({
+      cancelled: false,
+      options: { commonsUrl: "https://github.com/org/commons.git" },
+    });
+  });
+
+  it("bind-libraries commonsUrl rejects a non-url before accepting a valid one", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([
+      "bind-libraries",
+      "asdasd",
+      "git@host:org/commons.git",
+    ]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({
+      cancelled: false,
+      options: { commonsUrl: "git@host:org/commons.git" },
+    });
+  });
+
+  it("bind-libraries commonsUrl is trimmed before being returned", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([
+      "bind-libraries",
+      "  https://github.com/org/commons.git  ",
+    ]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({
+      cancelled: false,
+      options: { commonsUrl: "https://github.com/org/commons.git" },
+    });
+  });
+
+  it("cancelling the bind-libraries commonsUrl prompt → cancelled:true", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver(["bind-libraries", CANCEL]);
+    const result = await resolveInitPrompts({}, driver, dir);
+    expect(result).toEqual({ cancelled: true });
+  });
+
+  // Regression guard for the explicit --libraries flag: it must route
+  // through the same commons-url-only v2 flow as "bind-libraries" above,
+  // never resolveBindPrompts's legacy project/squad flow — that fallthrough
+  // was the v1-fallthrough bug this fixes.
+  it("--libraries flag with no commonsUrl: asks only the commons URL, never mode-select or project/squads", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver(["https://github.com/org/commons.git"]);
+    const result = await resolveInitPrompts(
+      { libraries: "resend,next" },
+      driver,
+      dir,
+    );
+    expect(result).toEqual({
+      cancelled: false,
+      options: {
+        commonsUrl: "https://github.com/org/commons.git",
+        libraries: ["resend", "next"],
+      },
+    });
+  });
+
+  it("--libraries + --commons-url both provided: never touches the driver", async () => {
+    const dir = await tmp.make();
+    const result = await resolveInitPrompts(
+      { libraries: "resend", commonsUrl: "https://github.com/org/commons.git" },
+      untouchableDriver,
+      dir,
+    );
+    expect(result).toEqual({
+      cancelled: false,
+      options: {
+        commonsUrl: "https://github.com/org/commons.git",
+        libraries: ["resend"],
+      },
+    });
+  });
+
+  it("cancelling the commonsUrl prompt under --libraries → cancelled:true", async () => {
+    const dir = await tmp.make();
+    const { driver } = fakeDriver([CANCEL]);
+    const result = await resolveInitPrompts(
+      { libraries: "resend" },
+      driver,
+      dir,
+    );
+    expect(result).toEqual({ cancelled: true });
+  });
+});
+
+describe("resolveInitPrompts — bind-libraries commons prefill from global config", () => {
+  const tmp = tmpDirFactory("rm-interactive-globalconfig-");
+
+  // Stack instead of a `let`: beforeEach pushes the pre-test value, afterEach
+  // pops the same value back — mirrors tmpDirFactory's own push/splice.
+  const savedConfigHome: (string | undefined)[] = [];
+  beforeEach(() => {
+    savedConfigHome.push(process.env.ROBOTO_MEM_CONFIG_HOME);
+  });
+  afterEach(async () => {
+    await tmp.cleanup();
+    const saved = savedConfigHome.pop();
+    if (saved === undefined) delete process.env.ROBOTO_MEM_CONFIG_HOME;
+    else process.env.ROBOTO_MEM_CONFIG_HOME = saved;
+  });
+
+  it("prefills the commons prompt's initialValue from an existing global config", async () => {
+    const dir = await tmp.make();
+    const home = await tmp.make();
+    await fs.writeFile(
+      path.join(home, "config.json"),
+      JSON.stringify({ commons: "https://github.com/team/commons.git" }),
+      "utf8",
+    );
+    process.env.ROBOTO_MEM_CONFIG_HOME = home;
+
+    const seen: { initialValue?: string }[] = [];
+    const driver: PromptDriver = {
+      text: async (opts) => {
+        seen.push(opts);
+        return "https://github.com/org/commons.git";
+      },
+      select: async () => {
+        throw new Error("select() must not be called");
+      },
+      confirm: async () => {
+        throw new Error("confirm() must not be called");
+      },
+      isCancel: (_value: unknown): _value is symbol => false,
+    };
+
+    await resolveInitPrompts({ libraries: "resend" }, driver, dir);
+    expect(seen[0]?.initialValue).toBe("https://github.com/team/commons.git");
+  });
+
+  it("no global config file: initialValue stays undefined, no error", async () => {
+    const dir = await tmp.make();
+    const home = await tmp.make();
+    process.env.ROBOTO_MEM_CONFIG_HOME = home;
+
+    const seen: { initialValue?: string }[] = [];
+    const driver: PromptDriver = {
+      text: async (opts) => {
+        seen.push(opts);
+        return "https://github.com/org/commons.git";
+      },
+      select: async () => {
+        throw new Error("select() must not be called");
+      },
+      confirm: async () => {
+        throw new Error("confirm() must not be called");
+      },
+      isCancel: (_value: unknown): _value is symbol => false,
+    };
+
+    await resolveInitPrompts({ libraries: "resend" }, driver, dir);
+    expect(seen[0]?.initialValue).toBeUndefined();
   });
 });
 

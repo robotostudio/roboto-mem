@@ -576,6 +576,135 @@ describe("override target is a lesson", () => {
   });
 });
 
+// ─── 13. Global library model (Phase 2): untagged + library:X entries ────────
+// See docs/design-specs/2026-07-17-global-library-model.md.
+describe("global library model — untagged (scope undefined) entries", () => {
+  it("renders under a [global] label and sorts before org", () => {
+    const entries: Entry[] = [
+      makeEntry({
+        name: "org-rule",
+        scope: "org",
+        type: "standard",
+        body: "org body",
+      }),
+      makeEntry({
+        name: "decision-framework",
+        scope: undefined,
+        type: "standard",
+        body: "global body",
+        file: "entries/decision-framework.md",
+      }),
+    ];
+    const result = compileDigest({
+      entries,
+      sessionScopes: ["org"],
+      budgets: {},
+      meta: baseMeta,
+    });
+    expect(result).toContain("### [global] decision-framework");
+    expect(result.indexOf("[global]")).toBeLessThan(result.indexOf("[org]"));
+  });
+
+  it("always applies regardless of sessionScopes", () => {
+    const entries: Entry[] = [
+      makeEntry({
+        name: "decision-framework",
+        scope: undefined,
+        type: "standard",
+        body: "global body",
+        file: "entries/decision-framework.md",
+      }),
+    ];
+    const result = compileDigest({
+      entries,
+      sessionScopes: [],
+      budgets: {},
+      meta: baseMeta,
+    });
+    expect(result).toContain("global body");
+  });
+
+  it("uses a bare (unprefixed) override ref for an untagged override target", () => {
+    const entries: Entry[] = [
+      makeEntry({
+        name: "decision-framework",
+        scope: undefined,
+        type: "standard",
+        body: "Global default.",
+        file: "entries/decision-framework.md",
+      }),
+      makeEntry({
+        name: "resend-decisions",
+        scope: "library:resend",
+        type: "standard",
+        body: "Resend-specific decisions.",
+        file: "entries/resend-decisions.md",
+        overrides: "decision-framework",
+      }),
+    ];
+    const result = compileDigest({
+      entries,
+      sessionScopes: ["resend"],
+      budgets: {},
+      meta: baseMeta,
+    });
+    expect(result).not.toContain("Global default.");
+    expect(result).toContain(
+      "> decision-framework is overridden for this repo by library:resend/resend-decisions.",
+    );
+  });
+
+  it("groups untagged entries under the global budget key in WARNING text", () => {
+    const entries: Entry[] = [
+      makeEntry({
+        name: "decision-framework",
+        scope: undefined,
+        type: "standard",
+        body: "x".repeat(200),
+        file: "entries/decision-framework.md",
+      }),
+    ];
+    const result = compileDigest({
+      entries,
+      sessionScopes: [],
+      budgets: { default: 10 },
+      meta: baseMeta,
+    });
+    expect(result).toMatch(
+      /> WARNING: scope global exceeds its budget \(\d+ > 10 tokens\)/,
+    );
+  });
+});
+
+describe("global library model — library:X scoped entries", () => {
+  it("applies only when the library is declared in sessionScopes", () => {
+    const entries: Entry[] = [
+      makeEntry({
+        name: "resend-templates",
+        scope: "library:resend",
+        type: "standard",
+        body: "Resend templates body.",
+        file: "entries/resend-templates.md",
+      }),
+    ];
+    const declared = compileDigest({
+      entries,
+      sessionScopes: ["resend"],
+      budgets: {},
+      meta: baseMeta,
+    });
+    expect(declared).toContain("Resend templates body.");
+
+    const undeclared = compileDigest({
+      entries,
+      sessionScopes: [],
+      budgets: {},
+      meta: baseMeta,
+    });
+    expect(undeclared).not.toContain("Resend templates body.");
+  });
+});
+
 // ─── 12. writeCache is best-effort — blocked cache dir does not throw ─────────
 describe("writeCache blocked cache dir", () => {
   it("resolves to undefined when a FILE blocks the cache dir (no throw)", async () => {

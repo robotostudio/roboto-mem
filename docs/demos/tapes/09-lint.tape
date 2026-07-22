@@ -1,6 +1,6 @@
 # Lint: what the Commons CI runs on every PR — redacted findings, hard exit 1.
-Output docs/demos/gif/10-lint.gif
-Output docs/demos/mp4/10-lint.mp4
+Output docs/demos/gif/09-lint.gif
+Output docs/demos/mp4/09-lint.mp4
 Source docs/demos/tapes/lib/style.tape
 Source docs/demos/tapes/lib/world.tape
 

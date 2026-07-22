@@ -1,12 +1,18 @@
 import { readCache, writeCache } from "../core/cache.js";
-import { loadConfig } from "../core/config.js";
+import type { RepoConfigV2 } from "../core/config.js";
+import { loadConfig, loadConfigV2 } from "../core/config.js";
 import { compileDigest } from "../core/digest.js";
-import { materializeSkills } from "../core/materialize.js";
-import { FORMAT_VERSION, loadMemory, memoryHome } from "../core/memory-repo.js";
+import {
+  FORMAT_VERSION,
+  loadMemory,
+  localRepo,
+  memoryHome,
+  readSyncDate,
+} from "../core/memory-repo.js";
 import { sessionScopes } from "../core/scopes.js";
 import type { CommandResult } from "../core/types.js";
 import { VERSION } from "../core/version.js";
-import { syncRepos } from "./sync.js";
+import { localRepos } from "./sync.js";
 
 export interface DigestOptions {
   cwd: string;
@@ -14,7 +20,6 @@ export interface DigestOptions {
   home?: string;
   nag?: string;
   today?: string;
-  skillsTargetDir?: string;
 }
 
 const todayString = (): string => new Date().toISOString().slice(0, 10);
@@ -51,10 +56,76 @@ const staleResult = async (
   return { exitCode: 1, output: STALE_ADVISORY };
 };
 
+/** Global library model: the v2 (library) digest path — global (untagged)
+ * entries always apply, library-scoped entries apply only if declared, both
+ * already implemented generically by entryApplies/compileDigest (Phase 2),
+ * so config.libraries doubles as the v2 "session scopes" list. Same
+ * network-free, cache-first contract as the v1 hook path below (localRepo,
+ * not ensureRepo) — see "Loading mechanism at SessionStart" in
+ * docs/design-specs/2026-07-17-global-library-model.md. */
+const runDigestV2 = async (
+  config: RepoConfigV2,
+  options: {
+    cwd: string;
+    hook: boolean;
+    home: string;
+    nag?: string;
+    today?: string;
+  },
+): Promise<CommandResult> => {
+  const { cwd, hook, home, nag, today } = options;
+
+  const commons = await localRepo(config.commons, home);
+  if (!commons.ok) {
+    const msg = `Team Memory unavailable: ${commons.error}`;
+    return hook ? hookResult(msg) : { exitCode: 1, output: msg };
+  }
+
+  const commonsLoad = await loadMemory(commons.dir);
+  if (!commonsLoad.ok) {
+    if (commonsLoad.reason === "newer-format") {
+      return staleResult(hook, home, cwd);
+    }
+    const msg = `Team Memory unavailable: ${commonsLoad.detail}`;
+    return hook ? hookResult(msg) : { exitCode: 1, output: msg };
+  }
+
+  // The hook reads a local clone without pulling, so "today" is not the sync
+  // date — prefer the timestamp `roboto-mem sync` persisted on its last
+  // successful run, falling back to today only when none was ever recorded.
+  const syncedDate =
+    today ?? (await readSyncDate(config.commons, home)) ?? todayString();
+
+  const digest = compileDigest({
+    entries: commonsLoad.entries,
+    sessionScopes: config.libraries,
+    budgets: commonsLoad.budgets,
+    meta: {
+      toolVersion: VERSION,
+      formatVersion: FORMAT_VERSION,
+      syncedDate,
+      nag,
+    },
+  });
+
+  await writeCache(home, cwd, { date: syncedDate, digest });
+
+  return hook ? hookResult(digest) : { exitCode: 0, output: digest };
+};
+
 export const runDigest = async (
   options: DigestOptions,
 ): Promise<CommandResult> => {
   const { cwd, hook = false, home = memoryHome(), nag, today } = options;
+
+  // Global library model: a genuine v2 config wins outright (mirrors
+  // sync.ts's runSync dispatch) — anything that ISN'T one (missing,
+  // v1-shaped, invalid, too-new) falls through to the v1 flow below
+  // completely unchanged.
+  const v2Result = await loadConfigV2(cwd);
+  if (v2Result.ok) {
+    return runDigestV2(v2Result.config, { cwd, hook, home, nag, today });
+  }
 
   // Step 1: load config
   const configResult = await loadConfig(cwd);
@@ -78,37 +149,18 @@ export const runDigest = async (
 
   const { config } = configResult;
 
-  // Step 2: sync repos
-  const synced = await syncRepos(config, home);
+  // Step 2: resolve local repos — no network. The hook only reads whatever
+  // a prior `roboto-mem sync` (or `init`) left on disk; cloning/pulling and
+  // skill materialization are manual `roboto-mem sync` operations now (see
+  // docs/design-specs/2026-07-17-global-library-model.md, "SessionStart
+  // Integration").
+  const synced = await localRepos(config, home);
 
   if (!synced.commons.ok) {
     const msg = `Team Memory unavailable: ${synced.commons.error}`;
     if (hook) return hookResult(msg);
     return { exitCode: 1, output: msg };
   }
-
-  // Step 2b: materialize team skills (best-effort; fresh sync only)
-  const skillReport = synced.commons.stale
-    ? undefined
-    : await materializeSkills({
-        commonsDir: synced.commons.dir,
-        home,
-        targetDir: options.skillsTargetDir,
-      });
-
-  const skillWarnings: string[] = skillReport
-    ? [
-        ...skillReport.restored.map(
-          (name) =>
-            `> WARNING: team skill ${name}: restored — local edits were replaced by the team version. Promote changes via PR instead.`,
-        ),
-        ...(skillReport.failed.length
-          ? [
-              `> WARNING: ${skillReport.failed.length} team skill(s) failed to materialize — run roboto-mem status.`,
-            ]
-          : []),
-      ]
-    : [];
 
   // Step 3: load commons memory
   const commonsLoad = await loadMemory(synced.commons.dir);
@@ -156,12 +208,13 @@ export const runDigest = async (
     Object.assign(allBudgets, overlayLoad.declaredBudgets);
   }
 
-  // Step 5: derive date — stale sync uses cache date
-  const isStale = synced.commons.stale;
-  const cache = isStale ? await readCache(home, cwd) : undefined;
-  const syncedDate = isStale
-    ? (cache?.date ?? "unknown")
-    : (today ?? todayString());
+  // Step 5: resolve the header's sync date. The hook only ever reads an
+  // already-local clone (no live pull), so "today" is not the sync date —
+  // prefer the timestamp `roboto-mem sync` persisted on its last successful
+  // run (see writeSyncDate/readSyncDate in core/memory-repo.ts), falling back
+  // to today only when none was ever recorded.
+  const syncedDate =
+    today ?? (await readSyncDate(config.commons, home)) ?? todayString();
 
   // Step 6: compile
   const scopes = sessionScopes({
@@ -182,15 +235,13 @@ export const runDigest = async (
     },
   });
 
-  const allWarnings = [...overlayWarnings, ...skillWarnings];
-  const fullOutput = allWarnings.length
-    ? `${digest}\n${allWarnings.join("\n")}`
+  const fullOutput = overlayWarnings.length
+    ? `${digest}\n${overlayWarnings.join("\n")}`
     : digest;
 
-  // Step 7: write cache only when sync was fresh
-  if (!isStale) {
-    await writeCache(home, cwd, { date: syncedDate, digest: fullOutput });
-  }
+  // Step 7: write cache — always, so status/staleResult have a last-known-good
+  // digest to fall back on if a future run hits a format/config mismatch.
+  await writeCache(home, cwd, { date: syncedDate, digest: fullOutput });
 
   return hook ? hookResult(fullOutput) : { exitCode: 0, output: fullOutput };
 };

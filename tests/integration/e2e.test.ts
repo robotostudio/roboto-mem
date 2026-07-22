@@ -7,6 +7,7 @@ import { runInit } from "../../src/commands/init.js";
 import { runLint } from "../../src/commands/lint.js";
 import { runPromote } from "../../src/commands/promote.js";
 import { runStatus } from "../../src/commands/status.js";
+import { runSync } from "../../src/commands/sync.js";
 import type { ExecResult } from "../../src/core/exec.js";
 import { exec } from "../../src/core/exec.js";
 import { makeCommonsFixture, pushEntry } from "../helpers/git.js";
@@ -88,6 +89,12 @@ describe("e2e integration", () => {
     expect(wsKeys).toContain("apps/web");
     expect(wsKeys).toContain("apps/studio");
 
+    // Step 3b: sync — the digest hook no longer clones/pulls on its own
+    // (global library model Phase 6), so a real user's first session
+    // depends on init/sync having already populated the local clone.
+    const syncResult = await runSync({ cwd: dir, home });
+    expect(syncResult.exitCode).toBe(0);
+
     // Step 4: runDigest hook mode
     const digest1 = await runDigest({
       cwd: dir,
@@ -122,7 +129,8 @@ describe("e2e integration", () => {
     expect(ctx1).not.toContain("shopify");
     expect(ctx1).not.toContain("@shopify");
 
-    // Step 5: push a new org lesson; runDigest again → new lesson appears (sync works)
+    // Step 5: push a new org lesson, re-sync (the hook itself never pulls),
+    // then runDigest again → new lesson appears.
     await pushEntry(
       fixture,
       "entries/org/prefer-const.md",
@@ -134,6 +142,7 @@ date: 2026-06-12
 ---
 Always declare variables with const. Use ternary or reduce instead of reassignment.`,
     );
+    expect((await runSync({ cwd: dir, home })).exitCode).toBe(0);
 
     const digest2 = await runDigest({
       cwd: dir,
@@ -212,13 +221,15 @@ Always declare variables with const. Use ternary or reduce instead of reassignme
 
     const fixture = await makeCommonsFixture(tmp);
 
-    // Bind the consuming project
+    // Bind the consuming project, then sync — the digest hook no longer
+    // clones/pulls on its own (global library model Phase 6).
     await runInit({
       dir,
       commonsUrl: fixture.remoteUrl,
       project: "demo",
       squads: ["web"],
     });
+    expect((await runSync({ cwd: dir, home })).exitCode).toBe(0);
 
     // First digest: today "2026-06-10" → seeds cache
     const first = await runDigest({
@@ -229,12 +240,15 @@ Always declare variables with const. Use ternary or reduce instead of reassignme
     });
     expect(first.exitCode).toBe(0);
 
-    // Push a memory.json with formatVersion 2 (newer than supported)
+    // Push a memory.json with formatVersion 3 (newer than supported), then
+    // re-sync so the local clone actually picks it up (the hook itself
+    // never pulls).
     await pushEntry(
       fixture,
       "memory.json",
-      JSON.stringify({ formatVersion: 2, budgets: {} }, null, 2),
+      JSON.stringify({ formatVersion: 3, budgets: {} }, null, 2),
     );
+    expect((await runSync({ cwd: dir, home })).exitCode).toBe(0);
 
     // Second digest: today "2026-06-13" → stale path: must use cached digest from 2026-06-10
     const second = await runDigest({

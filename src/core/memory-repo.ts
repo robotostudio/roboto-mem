@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { glob } from "tinyglobby";
@@ -7,7 +7,7 @@ import type { Entry } from "./entry.js";
 import { parseEntry } from "./entry.js";
 import { exec } from "./exec.js";
 
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export type RepoSync =
   | { ok: true; dir: string; stale: boolean }
@@ -33,17 +33,19 @@ export const repoDirFor = (url: string, home: string): string => {
   return path.join(home, "repos", hash);
 };
 
+const isCloned = (dir: string): Promise<boolean> =>
+  readFile(path.join(dir, ".git", "HEAD")).then(
+    () => true,
+    () => false,
+  );
+
 export const ensureRepo = async (
   url: string,
   home: string,
 ): Promise<RepoSync> => {
   const dir = repoDirFor(url, home);
 
-  const exists = await readFile(path.join(dir, ".git", "HEAD"))
-    .then(() => true)
-    .catch(() => false);
-
-  if (!exists) {
+  if (!(await isCloned(dir))) {
     const cloneResult = await exec("git", ["clone", url, dir]);
     if (!cloneResult.ok) {
       return { ok: false, error: cloneResult.stderr };
@@ -59,6 +61,56 @@ export const ensureRepo = async (
   return pullResult.ok
     ? { ok: true, dir, stale: false }
     : { ok: true, dir, stale: true };
+};
+
+/** Resolves an already-synced local repo directory with no network I/O —
+ * used by the SessionStart hook, which only reads whatever a prior
+ * `roboto-mem sync` (or `init`) left on disk (global library model Phase 6:
+ * the hook no longer clones or pulls). See "Loading mechanism at
+ * SessionStart" in docs/design-specs/2026-07-17-global-library-model.md. */
+export const localRepo = async (
+  url: string,
+  home: string,
+): Promise<RepoSync> => {
+  const dir = repoDirFor(url, home);
+  return (await isCloned(dir))
+    ? { ok: true, dir, stale: false }
+    : { ok: false, error: "not synced yet — run roboto-mem sync" };
+};
+
+/** Sidecar recording the date of the last *successful, non-stale* sync for a
+ * commons/overlay clone — sits next to the clone dir under `home/repos`. The
+ * SessionStart digest reads a local clone without pulling, so the run date is
+ * not the sync date; this preserves the real "synced" date across hook runs
+ * instead of stamping "today" on a clone that may be days old. */
+const syncStampPath = (url: string, home: string): string =>
+  `${repoDirFor(url, home)}.synced-at`;
+
+/** Records `date` (YYYY-MM-DD) as the last successful sync for `url`.
+ * Best-effort — a write failure must never break `sync`. */
+export const writeSyncDate = async (
+  url: string,
+  home: string,
+  date: string,
+): Promise<void> => {
+  try {
+    await mkdir(path.join(home, "repos"), { recursive: true });
+    await writeFile(syncStampPath(url, home), date, "utf8");
+  } catch {
+    // best-effort — a blocked or unwritable repos dir must never crash sync
+  }
+};
+
+/** Reads the last successful sync date for `url`, or undefined if none was
+ * ever recorded (e.g. an older clone predating this stamp). */
+export const readSyncDate = async (
+  url: string,
+  home: string,
+): Promise<string | undefined> => {
+  const text = await readFile(syncStampPath(url, home), "utf8").catch(
+    () => undefined,
+  );
+  return text?.trim() || undefined;
 };
 
 interface RawManifest {

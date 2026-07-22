@@ -11,7 +11,7 @@ WORLD=/tmp/roboto-mem-demo
 [ -f "$ROOT/dist/cli.mjs" ] || (cd "$ROOT" && pnpm build)
 
 rm -rf "$WORLD"
-mkdir -p "$WORLD"/{home,bin,acme-memory,demo-app,acme-web}
+mkdir -p "$WORLD"/{home,bin,acme-memory,demo-app,acme-web,acme-api}
 
 export GIT_CONFIG_GLOBAL="$WORLD/gitconfig"
 export GIT_CONFIG_NOSYSTEM=1
@@ -91,27 +91,6 @@ Rotate keys every quarter. Example .env:
 API_KEY="sk-demo4f9a2b8c1e7d3a5f9b2c8e1d7a3f"
 MD
 
-# --- client overlay repo (the second memory repo for the overlays demo) ---
-git init --bare --initial-branch=main "$WORLD/client-memory.git" --quiet
-git clone --quiet "$WORLD/client-memory.git" "$WORLD/client-work" 2>/dev/null
-
-cat > "$WORLD/client-work/memory.json" <<'JSON'
-{ "formatVersion": 1 }
-JSON
-
-mkdir -p "$WORLD/client-work/entries/org"
-cat > "$WORLD/client-work/entries/org/client-naming.md" <<'MD'
----
-description: Client features use the acme- prefix in package names
-type: standard
-author: maya
-date: 2026-06-05
----
-Every package built for this client is named acme-<feature>. No exceptions, including internal tooling.
-MD
-
-(cd "$WORLD/client-work" && git add . && git commit --quiet -m "seed client memory" && git push --quiet origin main)
-
 # --- upstream skills repo (the vendoring source for the skill-add demo) ---
 git init --bare --initial-branch=main "$WORLD/skills.git" --quiet
 git clone --quiet "$WORLD/skills.git" "$WORLD/skills-work" 2>/dev/null
@@ -127,6 +106,107 @@ MD
 
 (cd "$WORLD/skills-work" && git add . && git commit --quiet -m "grill-me" && git push --quiet origin main)
 
+# --- v2 commons (global library model) bare repo + teammate clone ---
+# Hand-built: `init --commons` still scaffolds v1-only. libraries/<name>/ dirs
+# drive init's dep auto-detection; auth0 is deliberately in NO project's deps
+# so the init tape shows available-vs-detected.
+git init --bare --initial-branch=main "$WORLD/commons-v2.git" --quiet
+git clone --quiet "$WORLD/commons-v2.git" "$WORLD/teamwork-v2" 2>/dev/null
+
+cat > "$WORLD/teamwork-v2/memory.json" <<'JSON'
+{
+  "formatVersion": 2,
+  "budgets": { "defaultTotal": 2000, "libraryMax": 1000 }
+}
+JSON
+
+mkdir -p "$WORLD/teamwork-v2/libraries"/{next,react,resend,auth0} \
+  "$WORLD/teamwork-v2/entries"
+
+cat > "$WORLD/teamwork-v2/libraries/next/LIBRARY.md" <<'MD'
+# next — team guide
+
+How we use Next.js at Acme.
+
+- App Router only; no new pages/ routes.
+- Mutations go through Server Actions; route handlers are for webhooks.
+- Default to Server Components; add "use client" only at interactive leaves.
+- Co-locate loading.tsx and error.tsx with every route segment.
+MD
+
+cat > "$WORLD/teamwork-v2/libraries/react/LIBRARY.md" <<'MD'
+# react — team guide
+
+How we write React at Acme.
+
+- Composition over prop drilling; extract children, not booleans.
+- Derive state during render; useEffect is for external systems only.
+- Profile before memoising — React.memo is not a default.
+- Keys are stable ids, never array indexes.
+MD
+
+cat > "$WORLD/teamwork-v2/libraries/resend/LIBRARY.md" <<'MD'
+# resend — team guide
+
+How we send email at Acme.
+
+- Send only from verified sender domains — never onboarding@resend.dev in prod.
+- Set an idempotency key on every retried send.
+- Build templates with react-email; no hand-written HTML strings.
+- One From address per product surface; reply-to goes to support.
+MD
+
+cat > "$WORLD/teamwork-v2/libraries/auth0/LIBRARY.md" <<'MD'
+# auth0 — team guide
+
+How we use Auth0 at Acme.
+
+- Rotate client secrets quarterly; store them in the team vault.
+- Refresh token rotation is mandatory for SPAs.
+- Use Organizations for B2B tenants — never roll custom tenant claims.
+- Test rules against a staging tenant before promoting them.
+MD
+
+# Flat v2 entries: no scope key = global (always applies);
+# scope: library:<name> applies only when that library is declared.
+cat > "$WORLD/teamwork-v2/entries/decision-framework.md" <<'MD'
+---
+description: Write down the decision before writing the code
+type: standard
+author: hrithik
+date: 2026-07-10
+---
+Before building anything non-trivial, write a three-line decision record:
+the problem, the option you chose, and the option you rejected.
+Put it in the PR description — reviewers approve the decision first,
+the diff second.
+MD
+
+cat > "$WORLD/teamwork-v2/entries/resend-sender-domain.md" <<'MD'
+---
+description: Production email sends from verified domains only
+type: standard
+author: ada
+date: 2026-07-12
+scope: library:resend
+---
+Every production send uses a verified sender domain. onboarding@resend.dev
+is for local experiments only — CI blocks it outside test files.
+MD
+
+cat > "$WORLD/teamwork-v2/entries/resend-rate-limits.md" <<'MD'
+---
+description: Bulk sends tripped Resend's rate limit and dropped receipts
+type: lesson
+author: maya
+date: 2026-07-15
+scope: library:resend
+---
+A per-user send loop hit the rate limit mid-batch; use batch endpoints or queue with backoff.
+MD
+
+(cd "$WORLD/teamwork-v2" && git add . && git commit --quiet -m "seed commons-v2" && git push --quiet origin main)
+
 # --- consumer projects ---
 cat > "$WORLD/acme-web/package.json" <<'JSON'
 {
@@ -140,7 +220,23 @@ cat > "$WORLD/demo-app/package.json" <<'JSON'
 {
   "name": "demo-app",
   "private": true,
-  "dependencies": { "react": "^19.0.0" }
+  "dependencies": {
+    "next": "^15.3.2",
+    "react": "^19.0.0",
+    "resend": "^4.5.1"
+  }
+}
+JSON
+
+cat > "$WORLD/acme-api/package.json" <<'JSON'
+{
+  "name": "acme-api",
+  "private": true,
+  "dependencies": {
+    "next": "^15.3.2",
+    "react": "^19.0.0",
+    "resend": "^4.5.1"
+  }
 }
 JSON
 
@@ -155,6 +251,13 @@ MD
 node "$ROOT/dist/cli.mjs" init "$WORLD/acme-web" \
   --commons-url "file://$WORLD/commons.git" \
   --project acme-web --squads web > /dev/null
+
+# Pre-bind acme-api the v2 way. HOME + ROBOTO_MEM_HOME point into the world so
+# init's auto-sync materializes libraries into $WORLD/home, never the real one
+# (env.zsh exports the same values at tape time).
+HOME="$WORLD/home" ROBOTO_MEM_HOME="$WORLD/home" node "$ROOT/dist/cli.mjs" init "$WORLD/acme-api" \
+  --commons-url "file://$WORLD/commons-v2.git" \
+  --libraries next,react,resend > /dev/null
 
 # Pre-seed the update-check throttle: 24h window means digest --hook makes no
 # network call and prints no nag during recordings.
@@ -178,26 +281,6 @@ echo "fake gh: unsupported: $*" >&2
 exit 1
 SH
 
-cat > "$WORLD/bin/teammate-push" <<'SH'
-#!/usr/bin/env bash
-# Hidden tape beat: a teammate lands a new Standard in the commons.
-# Path-scoped git add (pushEntry pattern) — the uncommitted lint bait can never leak.
-set -euo pipefail
-cd /tmp/roboto-mem-demo/teamwork
-cat > entries/squads/web/use-server-actions.md <<'MD'
----
-description: Mutations go through Server Actions, not API routes
-type: standard
-author: maya
-date: 2026-06-12
----
-New mutations use Next.js Server Actions. Reserve route handlers for webhooks and third-party callbacks.
-MD
-git add entries/squads/web/use-server-actions.md
-git commit --quiet -m "add squads/web/use-server-actions"
-git push --quiet origin main
-SH
-
 cat > "$WORLD/bin/teammate-add-skill" <<'SH'
 #!/usr/bin/env bash
 # Hidden tape beat: a teammate's skill PR merges in the commons.
@@ -217,20 +300,21 @@ git commit --quiet -m "skill(deploy-checklist): add"
 git push --quiet origin main
 SH
 
-cat > "$WORLD/bin/add-overlay" <<'SH'
+cat > "$WORLD/bin/teammate-update-library" <<'SH'
 #!/usr/bin/env bash
-# Tape helper: adds the client overlay to .roboto-mem.json (stands in for "open it in your editor").
+# Hidden tape beat: a teammate improves the resend library guide in the commons.
+# Path-scoped git add (pushEntry pattern), same as teammate-add-skill.
 set -euo pipefail
-cd /tmp/roboto-mem-demo/acme-web
-python3 - <<'PY'
-import json
-c = json.load(open(".roboto-mem.json"))
-c["overlays"] = ["file:///tmp/roboto-mem-demo/client-memory.git"]
-json.dump(c, open(".roboto-mem.json", "w"), indent=2)
-PY
+cd /tmp/roboto-mem-demo/teamwork-v2
+cat >> libraries/resend/LIBRARY.md <<'MD'
+- Batch sends: prefer audiences + broadcasts over per-user loops.
+MD
+git add libraries/resend/LIBRARY.md
+git commit --quiet -m "update libraries/resend"
+git push --quiet origin main
 SH
 
-chmod +x "$WORLD/bin/roboto-mem" "$WORLD/bin/gh" "$WORLD/bin/teammate-push" "$WORLD/bin/teammate-add-skill" "$WORLD/bin/add-overlay"
+chmod +x "$WORLD/bin/roboto-mem" "$WORLD/bin/gh" "$WORLD/bin/teammate-add-skill" "$WORLD/bin/teammate-update-library"
 
 cat > "$WORLD/env.zsh" <<'ZSH'
 # HOME redirected into the world: skill materialization targets ~/.claude/skills,

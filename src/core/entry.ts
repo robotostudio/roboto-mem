@@ -1,4 +1,5 @@
 import { parse, stringify } from "yaml";
+import { LIBRARY_SCOPE_RE } from "./scopes.js";
 
 /** Canonical entry types — single source for the promote type select, gate-1
  * validation, and parseEntry's frontmatter check. */
@@ -11,7 +12,10 @@ export interface Entry {
   name: string;
   description: string;
   type: EntryType;
-  scope: string;
+  /** Global library model: undefined = untagged (always loads). Legacy
+   * path-scoped entries and `library:{name}` entries are always defined —
+   * see docs/design-specs/2026-07-17-global-library-model.md. */
+  scope?: string;
   author: string;
   date: string;
   overrides?: string;
@@ -58,6 +62,11 @@ export const todayYMD = (): string => new Date().toISOString().slice(0, 10);
 // Pattern: entries/<dir>/<sub>/<name>.md (squads/stacks/projects)
 const SCOPE_RE =
   /^entries\/(org|squads|stacks|projects)\/(?:([^/]+)\/)?([^/]+)\.md$/;
+
+// Global library model: a flat entry lives directly under entries/ (no
+// legacy subdirectory) and takes its scope, if any, from frontmatter —
+// see docs/design-specs/2026-07-17-global-library-model.md.
+const FLAT_ENTRY_RE = /^entries\/[^/]+\.md$/;
 
 export const scopeFromPath = (file: string): string | undefined => {
   const m = SCOPE_RE.exec(file);
@@ -106,6 +115,37 @@ const fail = (file: string, error: string): EntryResult => ({
   error,
 });
 
+type ScopeResolution =
+  | { ok: true; scope: string | undefined }
+  | { ok: false; error: string };
+
+/** Legacy path-scoped files (entries/org/..., entries/squads/<s>/..., etc.)
+ * take scope from the path and reject frontmatter scope, unchanged. Flat
+ * files (entries/<name>.md, no legacy subdirectory) take scope from
+ * frontmatter: absent = untagged/global, `library:{name}` = library-scoped.
+ * Anything else (unknown nested paths) is rejected regardless of
+ * frontmatter — see docs/design-specs/2026-07-17-global-library-model.md. */
+const resolveEntryScope = (
+  fm: RawFrontmatter,
+  file: string,
+): ScopeResolution => {
+  const pathScope = scopeFromPath(file);
+  if (pathScope !== undefined) {
+    return "scope" in fm
+      ? { ok: false, error: "scope comes from the file path, not frontmatter" }
+      : { ok: true, scope: pathScope };
+  }
+
+  if (!FLAT_ENTRY_RE.test(file)) {
+    return { ok: false, error: `unknown scope directory: ${file}` };
+  }
+
+  if (fm.scope === undefined) return { ok: true, scope: undefined };
+  return typeof fm.scope === "string" && LIBRARY_SCOPE_RE.test(fm.scope)
+    ? { ok: true, scope: fm.scope }
+    : { ok: false, error: `scope must be "library:{name}" in ${file}` };
+};
+
 const parseFrontmatter = (yamlBlock: string): RawFrontmatter | null => {
   try {
     const parsed: unknown = parse(yamlBlock);
@@ -137,17 +177,15 @@ export const parseEntry = (raw: string, file: string): EntryResult => {
     return fail(file, "Malformed YAML frontmatter");
   }
 
-  if ("scope" in fm) {
-    return fail(file, "scope comes from the file path, not frontmatter");
-  }
   if ("name" in fm) {
     return fail(file, "name comes from the file path, not frontmatter");
   }
 
-  const scope = scopeFromPath(file);
-  if (!scope) {
-    return fail(file, `unknown scope directory: ${file}`);
+  const scopeResolution = resolveEntryScope(fm, file);
+  if (!scopeResolution.ok) {
+    return fail(file, scopeResolution.error);
   }
+  const { scope } = scopeResolution;
 
   if (typeof fm.description !== "string" || !fm.description) {
     return fail(
@@ -194,12 +232,18 @@ export const parseEntry = (raw: string, file: string): EntryResult => {
 };
 
 export const serializeEntry = (entry: Entry): string => {
+  // Legacy path-scoped entries derive scope from their path — never
+  // serialize it. Flat entries have no path-derived scope, so a defined
+  // scope must round-trip through frontmatter (global library model).
+  const isFlatEntry = scopeFromPath(entry.file) === undefined;
+
   const fm: Record<string, string> = {
     description: entry.description,
     type: entry.type,
     author: entry.author,
     date: entry.date,
     ...(entry.overrides !== undefined ? { overrides: entry.overrides } : {}),
+    ...(isFlatEntry && entry.scope !== undefined ? { scope: entry.scope } : {}),
   };
 
   return `---\n${stringify(fm).trimEnd()}\n---\n${entry.body}`;

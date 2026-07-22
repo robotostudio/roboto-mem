@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { glob } from "tinyglobby";
-import { estimateTokens } from "../core/digest.js";
+import { entryRef, estimateTokens, scopeKey } from "../core/digest.js";
 import type { Entry } from "../core/entry.js";
 import { loadMemory } from "../core/memory-repo.js";
 import { scanEntry } from "../core/scan.js";
-import { isValidScope, SCOPE_ID_RE } from "../core/scopes.js";
+import { isValidScope, LIBRARY_SCOPE_RE, SCOPE_ID_RE } from "../core/scopes.js";
 import { findSymlink, loadSkills, PROVENANCE_FILE } from "../core/skill.js";
 import type { CommandResult } from "../core/types.js";
 
@@ -13,21 +13,31 @@ export interface LintOptions {
   dir: string;
 }
 
-// Override ref format: <scope>/<name>  where scope may itself contain "/"
-// name = segment after final "/", scope = everything before it
+// Override ref format matches entryRef exactly (src/core/digest.ts): a bare
+// `<name>` targets an untagged/global entry; `<scope>/<name>` targets a
+// scoped one, where scope may itself contain "/" (squad/stack/project) or be
+// a `library:<name>` tag — name is the segment after the final "/", scope is
+// everything before it.
 
 interface ParsedRef {
-  scope: string;
+  scope: string | undefined;
   name: string;
 }
 
 const parseRef = (ref: string): ParsedRef | null => {
   const lastSlash = ref.lastIndexOf("/");
-  if (lastSlash === -1) return null;
+  if (lastSlash === -1) {
+    return SCOPE_ID_RE.test(ref) ? { scope: undefined, name: ref } : null;
+  }
   const scope = ref.slice(0, lastSlash);
   const name = ref.slice(lastSlash + 1);
   if (!scope || !name) return null;
-  if (!isValidScope(scope) || !SCOPE_ID_RE.test(name)) return null;
+  if (
+    (!isValidScope(scope) && !LIBRARY_SCOPE_RE.test(scope)) ||
+    !SCOPE_ID_RE.test(name)
+  ) {
+    return null;
+  }
   return { scope, name };
 };
 
@@ -52,10 +62,8 @@ const parseErrorFindings = (
 const overrideFindings = (entries: Entry[]): string[] => {
   const findings: string[] = [];
 
-  // Build lookup: "scope/name" -> entry
-  const byRef = new Map<string, Entry>(
-    entries.map((e) => [`${e.scope}/${e.name}`, e]),
-  );
+  // Build lookup: entry ref ("scope/name", or bare "name" if untagged) -> entry.
+  const byRef = new Map<string, Entry>(entries.map((e) => [entryRef(e), e]));
 
   for (const entry of entries) {
     if (!entry.overrides) continue;
@@ -69,12 +77,16 @@ const overrideFindings = (entries: Entry[]): string[] => {
     const parsed = parseRef(entry.overrides);
     if (!parsed) {
       findings.push(
-        `${entry.file}: invalid override ref format "${entry.overrides}" -- expected <scope>/<kebab-name>`,
+        `${entry.file}: invalid override ref format "${entry.overrides}" -- expected <kebab-name>, <scope>/<kebab-name>, or library:<lib>/<kebab-name>`,
       );
       continue;
     }
 
-    const refKey = `${parsed.scope}/${parsed.name}`;
+    // Mirrors entryRef's own convention exactly, so this key can only ever
+    // hit a real map entry (never a stray "undefined/name").
+    const refKey = parsed.scope
+      ? `${parsed.scope}/${parsed.name}`
+      : parsed.name;
     const target = byRef.get(refKey);
 
     if (!target) {
@@ -100,9 +112,10 @@ const budgetFindings = (
 ): string[] => {
   const byScope = new Map<string, Entry[]>();
   for (const entry of entries) {
-    const group = byScope.get(entry.scope) ?? [];
+    const key = scopeKey(entry.scope);
+    const group = byScope.get(key) ?? [];
     group.push(entry);
-    byScope.set(entry.scope, group);
+    byScope.set(key, group);
   }
 
   const findings: string[] = [];

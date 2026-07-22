@@ -94,6 +94,34 @@ describe("interactive mode: non-TTY parity through the real cli.ts wiring", () =
     );
   });
 
+  // Global library model (Phase 4): `promote library <name>` is dispatched
+  // manually inside promoteCmd.run (never a citty subCommand — see the
+  // comment above promoteLibraryCmd in cli.ts). These are real proof, through
+  // the actual built CLI, that (a) the dispatch doesn't regress entry
+  // promote's own flag parsing and (b) `promote library`'s own missing-NAME
+  // usage screen renders correctly.
+  it("promote --scope org --type standard: still reaches entry-promote's own gates, not an 'Unknown command' error", async () => {
+    const dir = await tmp.make();
+    const result = await rawRun(
+      [cliPath.current, "promote", "--scope", "org", "--type", "standard"],
+      dir,
+    );
+    expect(result.code).toBe(1);
+    expect(result.stdout + result.stderr).not.toContain("Unknown command");
+    expect(result.stdout).toContain('Invalid name ""');
+  });
+
+  it("promote library: missing positional NAME shows promote-library's own usage, not entry-promote's", async () => {
+    const dir = await tmp.make();
+    const result = await rawRun([cliPath.current, "promote", "library"], dir);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      "ERROR  Missing required positional argument: NAME",
+    );
+    expect(result.stdout).toContain("promote library");
+    expect(result.stdout).not.toContain("--scope");
+  });
+
   // D3: SOURCE/NAME became `required: false` in citty so a TTY session can
   // reach the guided prompt for them — citty's own parse-time throw (which
   // used to fire before run() ever executed) is now replicated verbatim by

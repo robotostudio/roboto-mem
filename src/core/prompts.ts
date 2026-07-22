@@ -23,6 +23,7 @@ export const INIT_FIELD_DESC = {
   project: "Project name",
   squads: "Comma-separated squad names",
   scaffoldCommons: "Scaffold commons repo",
+  libraries: "Comma-separated library names (skips auto-detect confirmation)",
 } as const;
 
 export const PROMOTE_FIELD_DESC = {
@@ -122,6 +123,10 @@ export interface InitProvided {
   commonsUrl?: string;
   squads?: string;
   scaffoldCommons?: boolean;
+  /** Global library model (v2): comma-separated library names. Presence
+   * (including "") skips detection/confirmation entirely — see
+   * docs/design-specs/2026-07-17-global-library-model.md. */
+  libraries?: string;
 }
 
 /** Bind vs scaffold is decided once, up front, at the orchestration layer
@@ -140,9 +145,12 @@ export interface InitPromptResult {
   commonsUrl?: string;
   squads?: string[];
   scaffoldCommons?: boolean;
+  libraries?: string[];
 }
 
-const validateCommonsUrl = (value: string): string | undefined => {
+/** Exported so interactive.ts's "bind-libraries" commons-url prompt (global
+ * library model init flow) reuses the exact same rule. */
+export const validateCommonsUrl = (value: string): string | undefined => {
   const trimmed = value.trim();
   if (!trimmed) return "must not be empty";
   return trimmed.includes("://") || trimmed.startsWith("git@")
@@ -207,12 +215,19 @@ export const buildInitOptions = (
   const squadsRaw = pick("squads", provided.squads, answers);
   return {
     project: pick("project", provided.project, answers),
-    commonsUrl: pick("commonsUrl", provided.commonsUrl, answers),
+    commonsUrl: pick("commonsUrl", provided.commonsUrl, answers)?.trim(),
     squads: squadsRaw ? splitSquads(squadsRaw) : undefined,
     scaffoldCommons:
       "scaffoldCommons" in answers
         ? (answers.scaffoldCommons as boolean)
         : provided.scaffoldCommons,
+    // Never collected via runPromptSteps — the v2 flow resolves its library
+    // list through init's own injected `selectLibraries` callback, not a
+    // text-prompt answer — so this is a flags-only passthrough.
+    libraries:
+      provided.libraries !== undefined
+        ? splitSquads(provided.libraries)
+        : undefined,
   };
 };
 

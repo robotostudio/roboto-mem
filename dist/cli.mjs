@@ -2208,10 +2208,15 @@ function validateConfig(raw) {
 		reason: "invalid",
 		detail: "configVersion must be a number"
 	};
-	if (version > 1) return {
+	if (version > 2) return {
 		ok: false,
 		reason: "newer-config",
-		detail: `config is version ${version}; this roboto-mem understands 1. Upgrade roboto-mem (/mem-upgrade).`
+		detail: `config is version ${version}; this roboto-mem understands 2. Upgrade roboto-mem (/mem-upgrade).`
+	};
+	if (version === 2) return {
+		ok: false,
+		reason: "newer-config",
+		detail: `config is version ${version}; this roboto-mem understands 2. Upgrade roboto-mem (/mem-upgrade).`
 	};
 	if (typeof raw.commons !== "string") return {
 		ok: false,
@@ -2256,8 +2261,11 @@ function validateConfig(raw) {
 		raw
 	};
 }
-const loadConfig = async (dir) => {
-	const filePath = path$1.join(dir, CONFIG_FILE);
+/** Reads + JSON-parses a config file, shared by the v1, v2, and global
+* loaders below. Returns the raw parsed object; callers run version-specific
+* validation on it. */
+async function readConfigFile(dir, fileName) {
+	const filePath = path$1.join(dir, fileName);
 	const text = await fs.readFile(filePath, "utf8").catch((err) => {
 		if (isNodeError(err) && err.code === "ENOENT") return null;
 		return { __unreadable: `config file unreadable: ${err instanceof Error ? err.message : String(err)}` };
@@ -2270,7 +2278,7 @@ const loadConfig = async (dir) => {
 	if (text === null) return {
 		ok: false,
 		reason: "missing",
-		detail: `${CONFIG_FILE} not found in ${dir}`
+		detail: `${fileName} not found in ${dir}`
 	};
 	const parsed = tryParseJson(text);
 	if (!parsed.ok) return {
@@ -2278,7 +2286,14 @@ const loadConfig = async (dir) => {
 		reason: "invalid",
 		detail: parsed.detail
 	};
-	return validateConfig(parsed.value);
+	return {
+		ok: true,
+		value: parsed.value
+	};
+}
+const loadConfig = async (dir) => {
+	const read = await readConfigFile(dir, CONFIG_FILE);
+	return read.ok ? validateConfig(read.value) : read;
 };
 const saveConfig = async (dir, config, preserve) => {
 	const merged = {
@@ -2286,6 +2301,70 @@ const saveConfig = async (dir, config, preserve) => {
 		...config
 	};
 	await fs.writeFile(path$1.join(dir, CONFIG_FILE), `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+};
+/** v1-only fields; presence on a configVersion:2 file means a hand-edited
+* hybrid config that must be cleaned up (distinct from a pure v1 file). */
+const LEGACY_V1_FIELDS = [
+	"project",
+	"squads",
+	"workspaces",
+	"overlays"
+];
+const CONFIG_V1_DEPRECATED_MESSAGE = "Config format v1 is deprecated. Run: `roboto-mem migrate` to upgrade.";
+const CONFIG_LEGACY_FIELDS_MESSAGE = "Config has legacy fields (project, squads, workspaces, overlays). Remove them or run `roboto-mem migrate` to clean up.";
+function validateConfigV2(raw) {
+	const version = raw.configVersion;
+	if (typeof version !== "number") return {
+		ok: false,
+		reason: "invalid",
+		detail: "configVersion must be a number"
+	};
+	if (version > 2) return {
+		ok: false,
+		reason: "newer-config",
+		detail: `config is version ${version}; this roboto-mem understands 2. Upgrade roboto-mem (/mem-upgrade).`
+	};
+	if (version !== 2) return {
+		ok: false,
+		reason: "invalid",
+		detail: version === 1 ? CONFIG_V1_DEPRECATED_MESSAGE : `configVersion must be 2`
+	};
+	if (LEGACY_V1_FIELDS.some((key) => key in raw)) return {
+		ok: false,
+		reason: "invalid",
+		detail: CONFIG_LEGACY_FIELDS_MESSAGE
+	};
+	if (typeof raw.commons !== "string") return {
+		ok: false,
+		reason: "invalid",
+		detail: "commons must be a string"
+	};
+	if (raw.libraries !== void 0 && !isStringArray(raw.libraries)) return {
+		ok: false,
+		reason: "invalid",
+		detail: "libraries must be an array of strings"
+	};
+	return {
+		ok: true,
+		config: {
+			configVersion: 2,
+			commons: raw.commons,
+			libraries: isStringArray(raw.libraries) ? raw.libraries : []
+		},
+		raw
+	};
+}
+const loadConfigV2 = async (dir) => {
+	const read = await readConfigFile(dir, CONFIG_FILE);
+	return read.ok ? validateConfigV2(read.value) : read;
+};
+/** Writes a fresh v2 config (global library model init, Phase 3). Unlike
+* `saveConfig`, there is no `preserve` param — a v2 config is only ever
+* written once for a brand-new project (init's own "config already exists"
+* gate blocks a second write; refreshing a v2 config's libraries is
+* `roboto-mem update-libraries`'s job, not init's). */
+const saveConfigV2 = async (dir, config) => {
+	await fs.writeFile(path$1.join(dir, CONFIG_FILE), `${JSON.stringify(config, null, 2)}\n`, "utf8");
 };
 function tryParseJson(text) {
 	try {
@@ -2329,16 +2408,24 @@ const sessionScopes = (input) => {
 		`project/${input.project}`
 	];
 };
-const entryApplies = (entryScope, scopes) => scopes.includes(entryScope);
+const LIBRARY_SCOPE_RE = /^library:([a-z0-9][a-z0-9-]*)$/;
+const entryApplies = (entryScope, scopes) => {
+	if (!entryScope) return true;
+	const match = LIBRARY_SCOPE_RE.exec(entryScope);
+	if (!match) return scopes.includes(entryScope);
+	const [, library] = match;
+	return library !== void 0 && scopes.includes(library);
+};
 const splitSquads = (raw) => raw.split(",").map((s) => s.trim()).filter(Boolean);
 //#endregion
 //#region src/core/digest.ts
 const estimateTokens = (s) => Math.ceil(s.length / 4);
 const scopeRank = (scope) => {
-	if (scope === "org") return [0, ""];
-	if (scope.startsWith("squad/")) return [1, scope];
-	if (scope.startsWith("stack/")) return [2, scope];
-	return [3, scope];
+	if (!scope) return [0, ""];
+	if (scope === "org") return [1, ""];
+	if (scope.startsWith("squad/")) return [2, scope];
+	if (scope.startsWith("stack/")) return [3, scope];
+	return [4, scope];
 };
 const compareScopes = (a, b) => {
 	const [ra, sa] = scopeRank(a);
@@ -2349,8 +2436,10 @@ const sortEntries = (entries) => [...entries].sort((a, b) => {
 	const sc = compareScopes(a.scope, b.scope);
 	return sc !== 0 ? sc : a.name.localeCompare(b.name);
 });
+const entryRef = (e) => e.scope ? `${e.scope}/${e.name}` : e.name;
+const scopeKey = (scope) => scope ?? "global";
 const resolveOverrides = (standards) => {
-	const lookup = new Map(standards.map((e) => [`${e.scope}/${e.name}`, e]));
+	const lookup = new Map(standards.map((e) => [entryRef(e), e]));
 	const overrideMap = /* @__PURE__ */ new Map();
 	const suppressedRefs = /* @__PURE__ */ new Set();
 	const warningRefs = /* @__PURE__ */ new Set();
@@ -2371,17 +2460,17 @@ const renderStandards = (standards, resolution) => {
 	const { suppressedRefs, warningRefs } = resolution;
 	const lines = [];
 	for (const e of standards) {
-		const ref = `${e.scope}/${e.name}`;
+		const ref = entryRef(e);
 		if (suppressedRefs.has(ref)) {
 			const overrider = resolution.overrideMap.get(ref);
-			lines.push(`### [${e.scope}] ${e.name}`);
+			lines.push(`### [${scopeKey(e.scope)}] ${e.name}`);
 			lines.push("");
-			lines.push(`> ${ref} is overridden for this repo by ${overrider?.scope}/${overrider?.name}.`);
+			lines.push(`> ${ref} is overridden for this repo by ${overrider ? entryRef(overrider) : "unknown"}.`);
 			lines.push("");
 			continue;
 		}
 		const overridesLabel = e.overrides ? ` — overrides ${e.overrides}` : "";
-		lines.push(`### [${e.scope}] ${e.name}${overridesLabel}`);
+		lines.push(`### [${scopeKey(e.scope)}] ${e.name}${overridesLabel}`);
 		lines.push("");
 		lines.push(e.body);
 		lines.push("");
@@ -2392,15 +2481,16 @@ const renderStandards = (standards, resolution) => {
 	}
 	return lines.join("\n").trimEnd();
 };
-const renderLesson = (e) => `- [${e.scope}] ${e.name} — ${e.description} (${e.file}, ${e.date})`;
+const renderLesson = (e) => `- [${scopeKey(e.scope)}] ${e.name} — ${e.description} (${e.file}, ${e.date})`;
 const budgetWarnings = (scopeTexts, budgets, orderedScopes) => {
 	const warnings = [];
 	for (const scope of orderedScopes) {
-		const text = scopeTexts.get(scope) ?? "";
+		const key = scopeKey(scope);
+		const text = scopeTexts.get(key) ?? "";
 		if (!text) continue;
 		const tokens = estimateTokens(text);
-		const cap = budgets[scope] ?? budgets.default ?? 2e3;
-		if (tokens > cap) warnings.push(`> WARNING: scope ${scope} exceeds its budget (${tokens} > ${cap} tokens). Prune or split entries.`);
+		const cap = budgets[key] ?? budgets.default ?? 2e3;
+		if (tokens > cap) warnings.push(`> WARNING: scope ${key} exceeds its budget (${tokens} > ${cap} tokens). Prune or split entries.`);
 	}
 	return warnings.join("\n");
 };
@@ -2416,16 +2506,19 @@ const compileDigest = (input) => {
 	const lessonsSectionText = renderSection("Lessons (read the file before relying on one)", lessons.length ? lessons.map(renderLesson).join("\n") : "");
 	const scopeChunks = /* @__PURE__ */ new Map();
 	for (const e of standards) {
-		const ref = `${e.scope}/${e.name}`;
-		const contribution = resolution.suppressedRefs.has(ref) ? `> ${ref} is overridden for this repo by ${resolution.overrideMap.get(ref)?.scope}/${resolution.overrideMap.get(ref)?.name}.` : e.body;
-		const chunks = scopeChunks.get(e.scope) ?? [];
+		const ref = entryRef(e);
+		const overrider = resolution.overrideMap.get(ref);
+		const contribution = resolution.suppressedRefs.has(ref) ? `> ${ref} is overridden for this repo by ${overrider ? entryRef(overrider) : "unknown"}.` : e.body;
+		const key = scopeKey(e.scope);
+		const chunks = scopeChunks.get(key) ?? [];
 		chunks.push(contribution);
-		scopeChunks.set(e.scope, chunks);
+		scopeChunks.set(key, chunks);
 	}
 	for (const e of lessons) {
-		const chunks = scopeChunks.get(e.scope) ?? [];
+		const key = scopeKey(e.scope);
+		const chunks = scopeChunks.get(key) ?? [];
 		chunks.push(renderLesson(e));
-		scopeChunks.set(e.scope, chunks);
+		scopeChunks.set(key, chunks);
 	}
 	const warnings = budgetWarnings(new Map([...scopeChunks.entries()].map(([scope, chunks]) => [scope, chunks.join("")])), budgets, scopeOrder);
 	const header = `# Team Memory (roboto-mem v${meta.toolVersion} · format ${meta.formatVersion} · synced ${meta.syncedDate})`;
@@ -11738,6 +11831,7 @@ const isValidDate = (value) => {
 };
 const todayYMD = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 const SCOPE_RE = /^entries\/(org|squads|stacks|projects)\/(?:([^/]+)\/)?([^/]+)\.md$/;
+const FLAT_ENTRY_RE = /^entries\/[^/]+\.md$/;
 const scopeFromPath = (file) => {
 	const m = SCOPE_RE.exec(file);
 	if (!m) return void 0;
@@ -11752,11 +11846,42 @@ const entryPathForScope = (scope, name) => {
 	const [prefix, sub] = scope.split("/");
 	return `entries/${prefix === "squad" ? "squads" : prefix === "stack" ? "stacks" : "projects"}/${sub}/${name}.md`;
 };
-const fail$2 = (file, error) => ({
+const fail$4 = (file, error) => ({
 	ok: false,
 	file,
 	error
 });
+/** Legacy path-scoped files (entries/org/..., entries/squads/<s>/..., etc.)
+* take scope from the path and reject frontmatter scope, unchanged. Flat
+* files (entries/<name>.md, no legacy subdirectory) take scope from
+* frontmatter: absent = untagged/global, `library:{name}` = library-scoped.
+* Anything else (unknown nested paths) is rejected regardless of
+* frontmatter — see docs/design-specs/2026-07-17-global-library-model.md. */
+const resolveEntryScope = (fm, file) => {
+	const pathScope = scopeFromPath(file);
+	if (pathScope !== void 0) return "scope" in fm ? {
+		ok: false,
+		error: "scope comes from the file path, not frontmatter"
+	} : {
+		ok: true,
+		scope: pathScope
+	};
+	if (!FLAT_ENTRY_RE.test(file)) return {
+		ok: false,
+		error: `unknown scope directory: ${file}`
+	};
+	if (fm.scope === void 0) return {
+		ok: true,
+		scope: void 0
+	};
+	return typeof fm.scope === "string" && LIBRARY_SCOPE_RE.test(fm.scope) ? {
+		ok: true,
+		scope: fm.scope
+	} : {
+		ok: false,
+		error: `scope must be "library:{name}" in ${file}`
+	};
+};
 const parseFrontmatter = (yamlBlock) => {
 	try {
 		const parsed = (0, import_dist.parse)(yamlBlock);
@@ -11766,22 +11891,22 @@ const parseFrontmatter = (yamlBlock) => {
 	}
 };
 const parseEntry = (raw, file) => {
-	if (!raw.startsWith("---\n")) return fail$2(file, "Missing YAML frontmatter: file must start with ---");
+	if (!raw.startsWith("---\n")) return fail$4(file, "Missing YAML frontmatter: file must start with ---");
 	const closeIdx = raw.indexOf("\n---\n", 4);
-	if (closeIdx === -1) return fail$2(file, "Unclosed YAML frontmatter: missing closing ---");
+	if (closeIdx === -1) return fail$4(file, "Unclosed YAML frontmatter: missing closing ---");
 	const yamlBlock = raw.slice(4, closeIdx);
 	const body = raw.slice(closeIdx + 5).trim();
 	const fm = parseFrontmatter(yamlBlock);
-	if (!fm) return fail$2(file, "Malformed YAML frontmatter");
-	if ("scope" in fm) return fail$2(file, "scope comes from the file path, not frontmatter");
-	if ("name" in fm) return fail$2(file, "name comes from the file path, not frontmatter");
-	const scope = scopeFromPath(file);
-	if (!scope) return fail$2(file, `unknown scope directory: ${file}`);
-	if (typeof fm.description !== "string" || !fm.description) return fail$2(file, `required field "description" is missing or not a string in ${file}`);
-	if (typeof fm.type !== "string" || !isEntryType(fm.type)) return fail$2(file, `required field "type" must be "standard" or "lesson" in ${file}`);
-	if (typeof fm.author !== "string" || !fm.author) return fail$2(file, `required field "author" is missing or not a string in ${file}`);
-	if (typeof fm.date !== "string" || !DATE_RE.test(fm.date)) return fail$2(file, `required field "date" must be YYYY-MM-DD in ${file}`);
-	if (fm.overrides !== void 0 && typeof fm.overrides !== "string") return fail$2(file, `optional field "overrides" must be a string in ${file}`);
+	if (!fm) return fail$4(file, "Malformed YAML frontmatter");
+	if ("name" in fm) return fail$4(file, "name comes from the file path, not frontmatter");
+	const scopeResolution = resolveEntryScope(fm, file);
+	if (!scopeResolution.ok) return fail$4(file, scopeResolution.error);
+	const { scope } = scopeResolution;
+	if (typeof fm.description !== "string" || !fm.description) return fail$4(file, `required field "description" is missing or not a string in ${file}`);
+	if (typeof fm.type !== "string" || !isEntryType(fm.type)) return fail$4(file, `required field "type" must be "standard" or "lesson" in ${file}`);
+	if (typeof fm.author !== "string" || !fm.author) return fail$4(file, `required field "author" is missing or not a string in ${file}`);
+	if (typeof fm.date !== "string" || !DATE_RE.test(fm.date)) return fail$4(file, `required field "date" must be YYYY-MM-DD in ${file}`);
+	if (fm.overrides !== void 0 && typeof fm.overrides !== "string") return fail$4(file, `optional field "overrides" must be a string in ${file}`);
 	return {
 		ok: true,
 		entry: {
@@ -11798,12 +11923,14 @@ const parseEntry = (raw, file) => {
 	};
 };
 const serializeEntry = (entry) => {
+	const isFlatEntry = scopeFromPath(entry.file) === void 0;
 	return `---\n${(0, import_dist.stringify)({
 		description: entry.description,
 		type: entry.type,
 		author: entry.author,
 		date: entry.date,
-		...entry.overrides !== void 0 ? { overrides: entry.overrides } : {}
+		...entry.overrides !== void 0 ? { overrides: entry.overrides } : {},
+		...isFlatEntry && entry.scope !== void 0 ? { scope: entry.scope } : {}
 	}).trimEnd()}\n---\n${entry.body}`;
 };
 //#endregion
@@ -11852,9 +11979,10 @@ const repoDirFor = (url, home) => {
 	const hash = createHash("sha256").update(url).digest("hex").slice(0, 12);
 	return path$1.join(home, "repos", hash);
 };
+const isCloned = (dir) => readFile(path$1.join(dir, ".git", "HEAD")).then(() => true, () => false);
 const ensureRepo = async (url, home) => {
 	const dir = repoDirFor(url, home);
-	if (!await readFile(path$1.join(dir, ".git", "HEAD")).then(() => true).catch(() => false)) {
+	if (!await isCloned(dir)) {
 		const cloneResult = await exec$1("git", [
 			"clone",
 			url,
@@ -11882,6 +12010,41 @@ const ensureRepo = async (url, home) => {
 		dir,
 		stale: true
 	};
+};
+/** Resolves an already-synced local repo directory with no network I/O —
+* used by the SessionStart hook, which only reads whatever a prior
+* `roboto-mem sync` (or `init`) left on disk (global library model Phase 6:
+* the hook no longer clones or pulls). See "Loading mechanism at
+* SessionStart" in docs/design-specs/2026-07-17-global-library-model.md. */
+const localRepo = async (url, home) => {
+	const dir = repoDirFor(url, home);
+	return await isCloned(dir) ? {
+		ok: true,
+		dir,
+		stale: false
+	} : {
+		ok: false,
+		error: "not synced yet — run roboto-mem sync"
+	};
+};
+/** Sidecar recording the date of the last *successful, non-stale* sync for a
+* commons/overlay clone — sits next to the clone dir under `home/repos`. The
+* SessionStart digest reads a local clone without pulling, so the run date is
+* not the sync date; this preserves the real "synced" date across hook runs
+* instead of stamping "today" on a clone that may be days old. */
+const syncStampPath = (url, home) => `${repoDirFor(url, home)}.synced-at`;
+/** Records `date` (YYYY-MM-DD) as the last successful sync for `url`.
+* Best-effort — a write failure must never break `sync`. */
+const writeSyncDate = async (url, home, date) => {
+	try {
+		await mkdir(path$1.join(home, "repos"), { recursive: true });
+		await writeFile(syncStampPath(url, home), date, "utf8");
+	} catch {}
+};
+/** Reads the last successful sync date for `url`, or undefined if none was
+* ever recorded (e.g. an older clone predating this stamp). */
+const readSyncDate = async (url, home) => {
+	return (await readFile(syncStampPath(url, home), "utf8").catch(() => void 0))?.trim() || void 0;
 };
 const DEFAULT_BUDGETS = {
 	default: 2e3,
@@ -11927,7 +12090,7 @@ const loadMemory = async (dir) => {
 		reason: "missing-manifest",
 		detail: "formatVersion is missing or not a number"
 	};
-	if (manifest.formatVersion > 1) return {
+	if (manifest.formatVersion > 2) return {
 		ok: false,
 		reason: "newer-format",
 		formatVersion: manifest.formatVersion
@@ -11962,6 +12125,61 @@ const loadMemory = async (dir) => {
 	};
 };
 const memoryHome = () => process.env.ROBOTO_MEM_HOME ?? path$1.join(os.homedir(), ".roboto-mem");
+//#endregion
+//#region src/core/version.ts
+const VERSION = "0.3.0";
+//#endregion
+//#region src/core/dir-diff.ts
+const hashFiles = async (dir) => {
+	const files = await glob(["**/*"], {
+		cwd: dir,
+		dot: true,
+		followSymbolicLinks: false
+	});
+	files.sort();
+	const map = /* @__PURE__ */ new Map();
+	for (const f of files) {
+		const buf = await readFile(path$1.join(dir, f));
+		map.set(f, createHash("sha256").update(buf).digest("hex"));
+	}
+	return map;
+};
+/** File-level diff between two directory trees, keyed by relative path.
+* `oldDir` undefined means "nothing there yet" — every file in `newDir` is
+* reported as added. Used both for sync's pre-overwrite confirm summary and
+* (symmetrically, swapping which side is "new") for a promotion's PR body. */
+const diffDirs = async (oldDir, newDir) => {
+	const newFiles = await hashFiles(newDir);
+	if (!oldDir) return {
+		added: [...newFiles.keys()].sort(),
+		changed: [],
+		removed: []
+	};
+	const oldFiles = await hashFiles(oldDir);
+	const added = [...newFiles.keys()].filter((f) => !oldFiles.has(f)).sort();
+	const removed = [...oldFiles.keys()].filter((f) => !newFiles.has(f)).sort();
+	return {
+		added,
+		changed: [...newFiles.keys()].filter((f) => oldFiles.has(f) && oldFiles.get(f) !== newFiles.get(f)).sort(),
+		removed
+	};
+};
+const isDirDiffEmpty = (diff) => diff.added.length === 0 && diff.changed.length === 0 && diff.removed.length === 0;
+/** Human-readable multi-line summary — a leading counts line ("1 added, 2
+* changed") followed by one `+`/`~`/`-` line per path. Used for sync's TTY
+* collision-confirm prompt. */
+const formatDirDiff = (diff) => {
+	if (isDirDiffEmpty(diff)) return "no changes";
+	return [[
+		...diff.added.length ? [`${diff.added.length} added`] : [],
+		...diff.changed.length ? [`${diff.changed.length} changed`] : [],
+		...diff.removed.length ? [`${diff.removed.length} removed`] : []
+	].join(", "), ...[
+		...diff.added.map((f) => `  + ${f}`),
+		...diff.changed.map((f) => `  ~ ${f}`),
+		...diff.removed.map((f) => `  - ${f}`)
+	]].join("\n");
+};
 //#endregion
 //#region src/core/skill.ts
 const PROVENANCE_FILE = ".provenance.json";
@@ -12199,7 +12417,7 @@ const declaresNewerFormat = async (commonsDir) => {
 	try {
 		const raw = JSON.parse(await readFile(path$1.join(commonsDir, "memory.json"), "utf8"));
 		const version = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw.formatVersion : void 0;
-		return typeof version === "number" && version > 1;
+		return typeof version === "number" && version > 2;
 	} catch {
 		return false;
 	}
@@ -12310,12 +12528,112 @@ const formatReport = (report) => {
 	return parts.length ? `skills: ${parts.join(", ")}` : void 0;
 };
 //#endregion
-//#region src/core/version.ts
-const VERSION = "0.3.0";
+//#region src/core/library.ts
+const commonsLibrariesDir = (commonsDir) => path$1.join(commonsDir, "libraries");
+const librariesHome = (home) => path$1.join(home, "libraries");
+const isPlanOk = (p) => p.ok;
+const planLibrary = async (commonsDir, home, name) => {
+	const commonsLibDir = path$1.join(commonsLibrariesDir(commonsDir), name);
+	if (!await exists(commonsLibDir)) return {
+		ok: false,
+		name,
+		error: `library not found in commons (expected libraries/${name}/)`
+	};
+	const localDir = path$1.join(librariesHome(home), name);
+	return {
+		ok: true,
+		entry: {
+			name,
+			commonsDir: commonsLibDir,
+			localDir,
+			diff: await diffDirs(await exists(localDir) ? localDir : void 0, commonsLibDir)
+		}
+	};
+};
+/** Atomically replaces localDir's contents with commonsDir's (tmp-then-rename,
+* mirrors materialize.ts's copySkill). */
+const applyLibrary = async (entry) => {
+	const tmp = `${entry.localDir}.tmp-${process.pid}`;
+	await mkdir(path$1.dirname(entry.localDir), { recursive: true });
+	try {
+		await rm(tmp, {
+			recursive: true,
+			force: true
+		});
+		await cp(entry.commonsDir, tmp, { recursive: true });
+		await rm(entry.localDir, {
+			recursive: true,
+			force: true
+		});
+		await rename(tmp, entry.localDir);
+	} finally {
+		await rm(tmp, {
+			recursive: true,
+			force: true
+		});
+	}
+};
+const formatCombinedDiff = (entries) => entries.map((e) => `${e.name}:\n${formatDirDiff(e.diff)}`).join("\n\n");
+const materializeLibraries = async (options) => {
+	const report = {
+		synced: [],
+		upToDate: [],
+		skipped: [],
+		failed: []
+	};
+	const plans = await Promise.all(options.libraryNames.map((name) => planLibrary(options.commonsDir, options.home, name)));
+	for (const plan of plans) if (!plan.ok) report.failed.push({
+		name: plan.name,
+		error: plan.error
+	});
+	const ok = plans.filter(isPlanOk).map((p) => p.entry);
+	const pending = ok.filter((e) => !isDirDiffEmpty(e.diff));
+	report.upToDate.push(...ok.filter((e) => isDirDiffEmpty(e.diff)).map((e) => e.name));
+	if (pending.length === 0) return report;
+	if (!(options.confirm ? await options.confirm(formatCombinedDiff(pending)) : true)) {
+		report.skipped.push(...pending.map((e) => e.name));
+		return report;
+	}
+	for (const entry of pending) try {
+		await applyLibrary(entry);
+		report.synced.push(entry.name);
+	} catch (e) {
+		report.failed.push({
+			name: entry.name,
+			error: e instanceof Error ? e.message : String(e)
+		});
+	}
+	return report;
+};
+const formatLibrariesReport = (report) => {
+	const parts = [
+		...report.synced.length ? [`${report.synced.length} synced`] : [],
+		...report.upToDate.length ? [`${report.upToDate.length} up to date`] : [],
+		...report.skipped.length ? [`skipped: ${report.skipped.join(", ")}`] : [],
+		...report.failed.length ? [`failed: ${report.failed.map((f) => `${f.name} (${f.error})`).join(", ")}`] : []
+	];
+	return parts.length ? `libraries: ${parts.join(", ")}` : void 0;
+};
 //#endregion
 //#region src/commands/sync.ts
+const todayIso = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 const syncRepos = async (config, home) => {
 	const [commons, ...overlaySyncs] = await Promise.all([ensureRepo(config.commons, home), ...config.overlays.map((url) => ensureRepo(url, home))]);
+	return {
+		commons,
+		overlays: config.overlays.map((url, i) => ({
+			url,
+			sync: overlaySyncs[i]
+		}))
+	};
+};
+/** Global library model (Phase 6): the SessionStart hook's network-free
+* counterpart to `syncRepos` — resolves commons + overlays from whatever a
+* prior `roboto-mem sync` (or `init`) left on disk, with no clone/pull. See
+* "Loading mechanism at SessionStart" in
+* docs/design-specs/2026-07-17-global-library-model.md. */
+const localRepos = async (config, home) => {
+	const [commons, ...overlaySyncs] = await Promise.all([localRepo(config.commons, home), ...config.overlays.map((url) => localRepo(url, home))]);
 	return {
 		commons,
 		overlays: config.overlays.map((url, i) => ({
@@ -12328,21 +12646,13 @@ const lineForSync = (url, sync) => {
 	if (!sync.ok) return `FAILED ${url}: ${sync.error}`;
 	return sync.stale ? `stale (offline?) ${url}` : `synced ${url}`;
 };
-const runSync = async (options) => {
-	const { cwd, home = memoryHome() } = options;
-	const configResult = await loadConfig(cwd);
-	if (!configResult.ok) {
-		if (configResult.reason === "missing") return {
-			exitCode: 1,
-			output: "run roboto-mem init"
-		};
-		return {
-			exitCode: 1,
-			output: configResult.detail
-		};
-	}
-	const { config } = configResult;
+/** Today's v1 flow, unchanged — still what runs for every existing
+* configVersion:1 project (verified: all pre-existing v1 sync tests keep
+* passing byte-for-byte through this extraction). */
+const runSyncV1 = async (config, options) => {
+	const { home = memoryHome() } = options;
 	const synced = await syncRepos(config, home);
+	if (synced.commons.ok && !synced.commons.stale) await writeSyncDate(config.commons, home, todayIso());
 	const lines = [lineForSync(config.commons, synced.commons)];
 	for (const { url, sync } of synced.overlays) lines.push(lineForSync(url, sync));
 	const skillsLine = synced.commons.ok && !synced.commons.stale ? formatReport(await materializeSkills({
@@ -12354,6 +12664,60 @@ const runSync = async (options) => {
 	return {
 		exitCode: synced.commons.ok ? 0 : 1,
 		output: outputLines.join("\n")
+	};
+};
+/** Global library model (Phase 4): one commons clone, declared libraries
+* materialized into ~/.roboto-mem/libraries/{lib}/, commons skills
+* materialized exactly as v1 already does. See "Sync & Promotion" in
+* docs/design-specs/2026-07-17-global-library-model.md. */
+const runSyncV2 = async (config, options) => {
+	const { home = memoryHome() } = options;
+	const commons = await ensureRepo(config.commons, home);
+	if (!commons.ok) return {
+		exitCode: 1,
+		output: `Cannot sync commons; check network and auth: ${commons.error}`
+	};
+	if (commons.stale) return {
+		exitCode: 0,
+		output: lineForSync(config.commons, commons)
+	};
+	await writeSyncDate(config.commons, home, todayIso());
+	const librariesReport = await materializeLibraries({
+		commonsDir: commons.dir,
+		home,
+		libraryNames: config.libraries,
+		confirm: options.confirmLibrarySync
+	});
+	const skillsReport = await materializeSkills({
+		commonsDir: commons.dir,
+		home,
+		targetDir: options.skillsTargetDir
+	});
+	const librariesLine = formatLibrariesReport(librariesReport);
+	const skillsLine = formatReport(skillsReport);
+	const lines = [
+		lineForSync(config.commons, commons),
+		...librariesLine ? [librariesLine] : [],
+		...skillsLine ? [skillsLine] : []
+	];
+	return {
+		exitCode: librariesReport.failed.length > 0 || skillsReport.failed.length > 0 ? 2 : 0,
+		output: lines.join("\n")
+	};
+};
+const runSync = async (options) => {
+	const { cwd } = options;
+	const v2Result = await loadConfigV2(cwd);
+	if (v2Result.ok) return runSyncV2(v2Result.config, options);
+	if (v2Result.reason === "missing") return {
+		exitCode: 1,
+		output: "run roboto-mem init"
+	};
+	const v1Result = await loadConfig(cwd);
+	if (v1Result.ok) return runSyncV1(v1Result.config, options);
+	return {
+		exitCode: 1,
+		output: v2Result.detail
 	};
 };
 //#endregion
@@ -12384,8 +12748,63 @@ const staleResult = async (hook, home, cwd) => {
 		output: STALE_ADVISORY
 	};
 };
+/** Global library model: the v2 (library) digest path — global (untagged)
+* entries always apply, library-scoped entries apply only if declared, both
+* already implemented generically by entryApplies/compileDigest (Phase 2),
+* so config.libraries doubles as the v2 "session scopes" list. Same
+* network-free, cache-first contract as the v1 hook path below (localRepo,
+* not ensureRepo) — see "Loading mechanism at SessionStart" in
+* docs/design-specs/2026-07-17-global-library-model.md. */
+const runDigestV2 = async (config, options) => {
+	const { cwd, hook, home, nag, today } = options;
+	const commons = await localRepo(config.commons, home);
+	if (!commons.ok) {
+		const msg = `Team Memory unavailable: ${commons.error}`;
+		return hook ? hookResult(msg) : {
+			exitCode: 1,
+			output: msg
+		};
+	}
+	const commonsLoad = await loadMemory(commons.dir);
+	if (!commonsLoad.ok) {
+		if (commonsLoad.reason === "newer-format") return staleResult(hook, home, cwd);
+		const msg = `Team Memory unavailable: ${commonsLoad.detail}`;
+		return hook ? hookResult(msg) : {
+			exitCode: 1,
+			output: msg
+		};
+	}
+	const syncedDate = today ?? await readSyncDate(config.commons, home) ?? todayString();
+	const digest = compileDigest({
+		entries: commonsLoad.entries,
+		sessionScopes: config.libraries,
+		budgets: commonsLoad.budgets,
+		meta: {
+			toolVersion: VERSION,
+			formatVersion: 2,
+			syncedDate,
+			nag
+		}
+	});
+	await writeCache(home, cwd, {
+		date: syncedDate,
+		digest
+	});
+	return hook ? hookResult(digest) : {
+		exitCode: 0,
+		output: digest
+	};
+};
 const runDigest = async (options) => {
 	const { cwd, hook = false, home = memoryHome(), nag, today } = options;
+	const v2Result = await loadConfigV2(cwd);
+	if (v2Result.ok) return runDigestV2(v2Result.config, {
+		cwd,
+		hook,
+		home,
+		nag,
+		today
+	});
 	const configResult = await loadConfig(cwd);
 	if (!configResult.ok) {
 		if (configResult.reason === "missing") {
@@ -12406,7 +12825,7 @@ const runDigest = async (options) => {
 		};
 	}
 	const { config } = configResult;
-	const synced = await syncRepos(config, home);
+	const synced = await localRepos(config, home);
 	if (!synced.commons.ok) {
 		const msg = `Team Memory unavailable: ${synced.commons.error}`;
 		if (hook) return hookResult(msg);
@@ -12415,12 +12834,6 @@ const runDigest = async (options) => {
 			output: msg
 		};
 	}
-	const skillReport = synced.commons.stale ? void 0 : await materializeSkills({
-		commonsDir: synced.commons.dir,
-		home,
-		targetDir: options.skillsTargetDir
-	});
-	const skillWarnings = skillReport ? [...skillReport.restored.map((name) => `> WARNING: team skill ${name}: restored — local edits were replaced by the team version. Promote changes via PR instead.`), ...skillReport.failed.length ? [`> WARNING: ${skillReport.failed.length} team skill(s) failed to materialize — run roboto-mem status.`] : []] : [];
 	const commonsLoad = await loadMemory(synced.commons.dir);
 	if (!commonsLoad.ok) {
 		if (commonsLoad.reason === "newer-format") return staleResult(hook, home, cwd);
@@ -12451,9 +12864,7 @@ const runDigest = async (options) => {
 		allEntries.push(...overlayLoad.entries);
 		Object.assign(allBudgets, overlayLoad.declaredBudgets);
 	}
-	const isStale = synced.commons.stale;
-	const cache = isStale ? await readCache(home, cwd) : void 0;
-	const syncedDate = isStale ? cache?.date ?? "unknown" : today ?? todayString();
+	const syncedDate = today ?? await readSyncDate(config.commons, home) ?? todayString();
 	const digest = compileDigest({
 		entries: allEntries,
 		sessionScopes: sessionScopes({
@@ -12464,14 +12875,13 @@ const runDigest = async (options) => {
 		budgets: allBudgets,
 		meta: {
 			toolVersion: VERSION,
-			formatVersion: 1,
+			formatVersion: 2,
 			syncedDate,
 			nag
 		}
 	});
-	const allWarnings = [...overlayWarnings, ...skillWarnings];
-	const fullOutput = allWarnings.length ? `${digest}\n${allWarnings.join("\n")}` : digest;
-	if (!isStale) await writeCache(home, cwd, {
+	const fullOutput = overlayWarnings.length ? `${digest}\n${overlayWarnings.join("\n")}` : digest;
+	await writeCache(home, cwd, {
 		date: syncedDate,
 		digest: fullOutput
 	});
@@ -12602,6 +13012,84 @@ const detectWorkspaces = async (root) => {
 	const stacks = await detectStacks(root, rootPkg);
 	if (stacks.length > 0) result["."] = stacks;
 	return result;
+};
+//#endregion
+//#region src/core/library-detect.ts
+/**
+* Hardcoded npm-scope → library-name aliases (global library model, init
+* detection step 5: "v1 bootstrap... extensible in Phase 3"). Only SCOPED
+* packages (`@scope/pkg`) need an alias — unscoped deps match a library name
+* via exact string intersection (step 6). Deliberately NOT STACK_SIGNALS
+* (src/core/detect.ts): that table emits stack names like "nextjs", not
+* library names like "next", and has no Resend/Auth0 entries — see
+* docs/design-specs/2026-07-17-global-library-model.md.
+*/
+const LIBRARY_ALIASES = {
+	"@auth0": "auth0",
+	"@sanity": "sanity",
+	"@shopify": "shopify"
+};
+/**
+* Enumerates `commons/libraries/` — each subdirectory is a library (init
+* detection step 4). Returns `undefined` when the directory is entirely
+* absent (caller surfaces "Commons has no libraries. Team must create
+* v2-format commons."); an empty array means the directory exists but the
+* team hasn't added any libraries yet — not an error.
+*/
+const listCommonsLibraries = async (commonsDir) => {
+	const entries = await readdir(join(commonsDir, "libraries"), { withFileTypes: true }).catch(() => void 0);
+	if (!entries) return void 0;
+	return entries.filter((e) => e.isDirectory()).map((e) => e.name).sort((a, b) => a.localeCompare(b));
+};
+/**
+* `package.json` `dependencies` ∪ `devDependencies` keys (init detection
+* step 5, root only, npm-only for v1). Returns `undefined` for a missing OR
+* malformed `package.json` — both cases mean "skip detection, offer an
+* empty config" per the spec, since neither yields a usable dependency list.
+*/
+const scanPackageDeps = async (dir) => {
+	const raw = await readFile(join(dir, "package.json"), "utf8").catch(() => null);
+	if (raw === null) return void 0;
+	try {
+		const pkg = JSON.parse(raw);
+		return [...new Set([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})])];
+	} catch {
+		return;
+	}
+};
+/** Exact-intersection matching rule (step 5): unscoped deps match a library
+* name verbatim; scoped deps (`@scope/pkg`) go through LIBRARY_ALIASES
+* first. A scoped dep with no alias entry warns rather than silently
+* dropping — the user may still need to add it manually. */
+const matchDep = (dep, available) => {
+	if (!dep.startsWith("@")) return available.has(dep) ? { library: dep } : void 0;
+	const alias = LIBRARY_ALIASES[dep.split("/")[0] ?? dep];
+	if (!alias) return { warning: `Couldn't map ${dep} to a known library; add manually if needed` };
+	return available.has(alias) ? { library: alias } : void 0;
+};
+/** Intersects `deps` against `available` commons libraries (init detection
+* steps 5–6), applying the alias table for scoped packages. Result is
+* sorted + deduped. */
+const mapDepsToLibraries = (deps, available) => {
+	const availableSet = new Set(available);
+	const detected = /* @__PURE__ */ new Set();
+	const warnings = [];
+	for (const dep of deps) {
+		const match = matchDep(dep, availableSet);
+		if (!match) continue;
+		if ("warning" in match) {
+			warnings.push({
+				dep,
+				message: match.warning
+			});
+			continue;
+		}
+		detected.add(match.library);
+	}
+	return {
+		detected: [...detected].sort((a, b) => a.localeCompare(b)),
+		warnings
+	};
 };
 //#endregion
 //#region src/commands/commons-templates.ts
@@ -12861,7 +13349,72 @@ const bindMode = async (options) => {
 		].join("\n")
 	};
 };
-const runInit = async (options) => options.scaffoldCommons ? scaffoldMode(options.dir) : bindMode(options);
+const initUsageV2 = () => [
+	"Missing required option.",
+	"  --commons-url <git-url>   URL of the Commons memory repo",
+	"",
+	"Example:",
+	"  roboto-mem init --commons-url https://github.com/org/team-memory.git"
+].join("\n");
+const fail$3 = (output) => ({
+	exitCode: 1,
+	output
+});
+/**
+* Global library model (Phase 3): the new `.roboto-mem.json` v2 flow —
+* "Library Detection & Init Flow" in docs/design-specs/2026-07-17-global-
+* library-model.md, steps 1–10 (step 11's non-TTY-errors framing is
+* softened to "flags-only never prompts", matching every other guided
+* command in this codebase — see runInit's dispatch comment for why).
+*/
+const bindModeV2 = async (options) => {
+	const { dir, home = memoryHome() } = options;
+	if (await exists(path$1.join(dir, ".roboto-mem.json"))) return fail$3("Config already exists. Run `roboto-mem update-libraries` to refresh.");
+	const commonsUrl = options.commonsUrl;
+	if (!commonsUrl) return fail$3(initUsageV2());
+	const repoSync = await ensureRepo(commonsUrl, home);
+	if (!repoSync.ok) return fail$3(`Cannot reach commons; check network and URL: ${repoSync.error}`);
+	const available = await listCommonsLibraries(repoSync.dir);
+	if (available === void 0) return fail$3("Commons has no libraries. Team must create v2-format commons.");
+	const deps = await scanPackageDeps(dir);
+	const detection = deps ? mapDepsToLibraries(deps, available) : {
+		detected: [],
+		warnings: []
+	};
+	const chosen = options.libraries ?? (options.selectLibraries ? await options.selectLibraries({
+		available,
+		detected: detection.detected
+	}) : detection.detected);
+	if (chosen === void 0) return fail$3("Cancelled.");
+	await saveConfigV2(dir, {
+		configVersion: 2,
+		commons: commonsUrl,
+		libraries: chosen
+	});
+	const syncResult = await runSync({
+		cwd: dir,
+		home,
+		skillsTargetDir: options.skillsTargetDir
+	});
+	const syncLine = syncResult.exitCode === 0 ? "Libraries synced." : `WARNING: sync did not fully complete (${syncResult.output.split("\n")[0]}). Run roboto-mem sync manually.`;
+	return {
+		exitCode: 0,
+		output: [
+			`Bound commons: ${commonsUrl}`,
+			`Libraries: ${chosen.length ? chosen.join(", ") : "(none)"}`,
+			...detection.warnings.map((w) => `WARNING: ${w.message}`),
+			syncLine
+		].join("\n")
+	};
+};
+const usesLibraryModel = async (options) => {
+	if (options.project !== void 0 || options.commonsUrl === void 0) return false;
+	return !(await loadConfig(options.dir)).ok;
+};
+const runInit = async (options) => {
+	if (options.scaffoldCommons) return scaffoldMode(options.dir);
+	return await usesLibraryModel(options) ? bindModeV2(options) : bindMode(options);
+};
 //#endregion
 //#region src/core/scan.ts
 const isNotPlaceholder = (raw) => {
@@ -12931,11 +13484,14 @@ const scanEntry = (text) => {
 //#region src/commands/lint.ts
 const parseRef = (ref) => {
 	const lastSlash = ref.lastIndexOf("/");
-	if (lastSlash === -1) return null;
+	if (lastSlash === -1) return SCOPE_ID_RE.test(ref) ? {
+		scope: void 0,
+		name: ref
+	} : null;
 	const scope = ref.slice(0, lastSlash);
 	const name = ref.slice(lastSlash + 1);
 	if (!scope || !name) return null;
-	if (!isValidScope(scope) || !SCOPE_ID_RE.test(name)) return null;
+	if (!isValidScope(scope) && !LIBRARY_SCOPE_RE.test(scope) || !SCOPE_ID_RE.test(name)) return null;
 	return {
 		scope,
 		name
@@ -12949,7 +13505,7 @@ const manifestFindings = (load) => {
 const parseErrorFindings = (errors) => errors.map(({ file, error }) => `${file}: ${error}`);
 const overrideFindings = (entries) => {
 	const findings = [];
-	const byRef = new Map(entries.map((e) => [`${e.scope}/${e.name}`, e]));
+	const byRef = new Map(entries.map((e) => [entryRef(e), e]));
 	for (const entry of entries) {
 		if (!entry.overrides) continue;
 		if (entry.type === "lesson") {
@@ -12961,7 +13517,7 @@ const overrideFindings = (entries) => {
 			findings.push(`${entry.file}: invalid override ref format "${entry.overrides}" -- expected <scope>/<kebab-name>`);
 			continue;
 		}
-		const refKey = `${parsed.scope}/${parsed.name}`;
+		const refKey = parsed.scope ? `${parsed.scope}/${parsed.name}` : parsed.name;
 		const target = byRef.get(refKey);
 		if (!target) {
 			findings.push(`${entry.file}: declared override target ${entry.overrides} not found`);
@@ -12974,9 +13530,10 @@ const overrideFindings = (entries) => {
 const budgetFindings = (entries, budgets) => {
 	const byScope = /* @__PURE__ */ new Map();
 	for (const entry of entries) {
-		const group = byScope.get(entry.scope) ?? [];
+		const key = scopeKey(entry.scope);
+		const group = byScope.get(key) ?? [];
 		group.push(entry);
-		byScope.set(entry.scope, group);
+		byScope.set(key, group);
 	}
 	const findings = [];
 	for (const [scope, group] of byScope) {
@@ -13064,6 +13621,117 @@ const runLint = async (options) => {
 	};
 };
 //#endregion
+//#region src/core/migrate.ts
+/** v1 keys `buildMigratedConfig` already accounts for explicitly (mapped into
+* a v2 field, or intentionally dropped) — anything else on the raw v1 JSON is
+* a genuinely unknown/custom key that must round-trip untouched. */
+const KNOWN_V1_KEYS = new Set([
+	"configVersion",
+	"commons",
+	...LEGACY_V1_FIELDS
+]);
+/** Canonical v2 destination keys this transform writes. A hand-added custom v1
+* property of the same name must never round-trip on top of the derived value
+* (spread last), silently clobbering the libraries/librariesLocal we built
+* from workspaces, squads, and overlays. */
+const RESERVED_V2_KEYS = new Set(["libraries", "librariesLocal"]);
+const unknownKeys = (raw) => Object.fromEntries(Object.entries(raw).filter(([key]) => !KNOWN_V1_KEYS.has(key) && !RESERVED_V2_KEYS.has(key)));
+/** v1 workspace values are scope strings (`stack/next`), not bare v2 library
+* names — strip the legacy `stack/` prefix so migration yields valid library
+* ids. Anything without the prefix (already bare) passes through unchanged. */
+const STACK_SCOPE_PREFIX = "stack/";
+const toLibraryName = (scope) => scope.startsWith(STACK_SCOPE_PREFIX) ? scope.slice(6) : scope;
+/**
+* Pure v1 -> v2 config transform (no I/O — see commands/migrate.ts for the
+* file read/write wrapper). Lossless: every v1 field either maps into a v2
+* field or is preserved under a migration-only key for human review — see
+* "Migration: configVersion 1 -> 2" in
+* docs/design-specs/2026-07-17-global-library-model.md.
+*
+* - `workspaces` stack arrays flatten + union into `libraries`, with the
+*   legacy `stack/` scope prefix stripped to valid bare library names.
+* - `squads` fold into that same `libraries` union, verbatim: once commons-
+*   side migration retags `entries/squads/{name}/...` to
+*   `scope: library:{name}`, a project that doesn't also declare that
+*   library would silently stop seeing those entries. Reviewed by the team
+*   like any other library name (same as the commons-side retag itself).
+* - `overlays` (extra synced repos) have no v2 equivalent — v2 is single-
+*   commons only — so they're preserved verbatim under `librariesLocal`
+*   instead of being silently dropped; not a validated v2 field, flagged in
+*   the CLI output for manual review.
+* - `project` carries no information `libraries` doesn't already capture and
+*   has no v2 equivalent — dropped.
+* - Anything else on the raw JSON (hand-added custom keys) round-trips
+*   unchanged.
+*/
+const buildMigratedConfig = (v1, raw) => {
+	const stacks = Object.values(v1.workspaces).flat().map(toLibraryName);
+	const libraries = [...new Set([...stacks, ...v1.squads])];
+	const migrated = {
+		configVersion: 2,
+		commons: v1.commons,
+		libraries
+	};
+	if (v1.overlays.length > 0) migrated.librariesLocal = v1.overlays;
+	return {
+		...migrated,
+		...unknownKeys(raw)
+	};
+};
+//#endregion
+//#region src/commands/migrate.ts
+/** Never written in-place over the original — see the "v1 config safety"
+* requirement in docs/design-specs/2026-07-17-global-library-model.md's
+* migration section: the source .roboto-mem.json is never deleted or
+* modified, so a bad migration is always recoverable by just deleting this
+* file and re-running. The user reviews the diff and renames it manually. */
+const MIGRATED_CONFIG_FILE = `${CONFIG_FILE}.migrated`;
+const migrationNotes = (v1) => [v1.squads.length > 0 && `squad names (${v1.squads.join(", ")}) were folded into "libraries" verbatim — verify each matches (or will match, once commons-side migration retags entries) an actual library`, v1.overlays.length > 0 && `overlays were preserved under "librariesLocal" for review — v2 supports a single commons only; promote their content into a library, or drop the field, before renaming`].filter((note) => Boolean(note));
+const runMigrate = async (options) => {
+	const { cwd } = options;
+	const read = await readConfigFile(cwd, CONFIG_FILE);
+	if (!read.ok) return {
+		exitCode: 1,
+		output: read.reason === "missing" ? "no .roboto-mem.json found — run roboto-mem init" : read.detail
+	};
+	const { value: raw } = read;
+	const version = raw.configVersion;
+	if (version === 2) return {
+		exitCode: 0,
+		output: "Already migrated (configVersion: 2). Nothing to do."
+	};
+	if (version !== 1) return {
+		exitCode: 1,
+		output: `Cannot migrate: configVersion is ${JSON.stringify(version)}, expected 1.`
+	};
+	const validated = validateConfig(raw);
+	if (!validated.ok) return {
+		exitCode: 1,
+		output: `Invalid v1 config: ${validated.detail}`
+	};
+	const { config: v1 } = validated;
+	const migrated = buildMigratedConfig(v1, raw);
+	await fs.writeFile(path$1.join(cwd, MIGRATED_CONFIG_FILE), `${JSON.stringify(migrated, null, 2)}\n`, "utf8");
+	const notes = migrationNotes(v1);
+	return {
+		exitCode: 0,
+		output: [
+			`Migrated ${CONFIG_FILE} (configVersion 1) -> configVersion 2.`,
+			`Wrote ${MIGRATED_CONFIG_FILE} — the original ${CONFIG_FILE} is unchanged.`,
+			"",
+			JSON.stringify(migrated, null, 2),
+			...notes.length > 0 ? [
+				"",
+				"Notes:",
+				...notes.map((n) => `  - ${n}`)
+			] : [],
+			"",
+			"Review the new config, then replace the original:",
+			`  mv ${MIGRATED_CONFIG_FILE} ${CONFIG_FILE}`
+		].join("\n")
+	};
+};
+//#endregion
 //#region src/core/dedupe.ts
 const SIMILARITY_THRESHOLD = .55;
 const STOPWORDS = new Set([
@@ -13101,7 +13769,7 @@ const findSimilar = (draft, candidates) => candidates.map((candidate) => ({
 })).filter(({ score }) => score >= SIMILARITY_THRESHOLD).sort((a, b) => b.score - a.score);
 //#endregion
 //#region src/commands/promote.ts
-const fail$1 = (output, reason) => reason ? {
+const fail$2 = (output, reason) => reason ? {
 	exitCode: 1,
 	output,
 	reason
@@ -13109,7 +13777,7 @@ const fail$1 = (output, reason) => reason ? {
 	exitCode: 1,
 	output
 };
-const ok$1 = (output) => ({
+const ok$2 = (output) => ({
 	exitCode: 0,
 	output
 });
@@ -13119,41 +13787,41 @@ const compareUrl = (commonsUrl, branch) => {
 	return m ? `https://github.com/${m[1]}/compare/main...${branch}` : void 0;
 };
 const branchName = (scope, name) => `promote/${scope.replace(/\//g, "-")}-${name}`;
-const defaultGhRunner$1 = (args, cwd) => exec$1("gh", args, { cwd });
+const defaultGhRunner$2 = (args, cwd) => exec$1("gh", args, { cwd });
 const runPromote = async (options) => {
-	const { cwd, scope, type, name, description, body, author, date, overrides, force = false, overwrite = false, home = memoryHome(), ghRunner = defaultGhRunner$1 } = options;
-	if (!isValidScope(scope)) return fail$1(`Invalid scope "${scope}". Must be ${SCOPE_RULE}.`);
-	if (!SCOPE_ID_RE.test(name)) return fail$1(`Invalid name "${name}". Must match ${SCOPE_ID_RULE}.`);
-	if (!isEntryType(type)) return fail$1(`Invalid type "${type}". Must be "standard" or "lesson".`);
-	if (!isValidDate(date)) return fail$1(`Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`);
-	if (!description.trim()) return fail$1("description must not be empty.");
-	if (!body.trim()) return fail$1("body must not be empty.");
-	if (!author.trim()) return fail$1("author must not be empty.");
+	const { cwd, scope, type, name, description, body, author, date, overrides, force = false, overwrite = false, home = memoryHome(), ghRunner = defaultGhRunner$2 } = options;
+	if (!isValidScope(scope)) return fail$2(`Invalid scope "${scope}". Must be ${SCOPE_RULE}.`);
+	if (!SCOPE_ID_RE.test(name)) return fail$2(`Invalid name "${name}". Must match ${SCOPE_ID_RULE}.`);
+	if (!isEntryType(type)) return fail$2(`Invalid type "${type}". Must be "standard" or "lesson".`);
+	if (!isValidDate(date)) return fail$2(`Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`);
+	if (!description.trim()) return fail$2("description must not be empty.");
+	if (!body.trim()) return fail$2("body must not be empty.");
+	if (!author.trim()) return fail$2("author must not be empty.");
 	const configResult = await loadConfig(cwd);
-	if (!configResult.ok) return fail$1(configResult.reason === "newer-config" ? configResult.detail : configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : `Config invalid: ${configResult.detail}`);
+	if (!configResult.ok) return fail$2(configResult.reason === "newer-config" ? configResult.detail : configResult.reason === "missing" ? `No .roboto-mem.json found in ${cwd}. Run roboto-mem init first.` : `Config invalid: ${configResult.detail}`);
 	const { commons } = configResult.config;
 	const repoSync = await ensureRepo(commons, home);
-	if (!repoSync.ok) return fail$1(`Failed to sync commons repo: ${repoSync.error}`);
+	if (!repoSync.ok) return fail$2(`Failed to sync commons repo: ${repoSync.error}`);
 	const { dir: cloneDir } = repoSync;
 	const mem = await loadMemory(cloneDir);
 	if (!mem.ok) {
-		if (mem.reason === "newer-format") return fail$1(`Memory repo format version ${mem.formatVersion} is newer than supported. Upgrade roboto-mem.`);
-		return fail$1(`Failed to load memory: ${mem.detail}`);
+		if (mem.reason === "newer-format") return fail$2(`Memory repo format version ${mem.formatVersion} is newer than supported. Upgrade roboto-mem.`);
+		return fail$2(`Failed to load memory: ${mem.detail}`);
 	}
 	const relPath = entryPathForScope(scope, name);
-	if (mem.entries.find((e) => e.file === relPath) && !overwrite) return fail$1(`Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`, "collision");
+	if (mem.entries.find((e) => e.file === relPath) && !overwrite) return fail$2(`Entry already exists at ${relPath}. Edit it directly instead of promoting a new one.`, "collision");
 	if (!force) {
 		const similar = findSimilar({
 			name,
 			description,
 			body
 		}, mem.entries);
-		if (similar.length > 0) return fail$1(["Similar entries already exist — use --force to promote anyway:", ...similar.map((m) => `  ${m.candidate.file} (score ${m.score.toFixed(2)})`)].join("\n"));
+		if (similar.length > 0) return fail$2(["Similar entries already exist — use --force to promote anyway:", ...similar.map((m) => `  ${m.candidate.file} (score ${m.score.toFixed(2)})`)].join("\n"));
 	}
 	const findings = scanEntry(`${description}\n${body}`);
 	const errors = findings.filter((f) => f.severity === "error");
 	const warnings = findings.filter((f) => f.severity === "warning");
-	if (errors.length > 0) return fail$1(["Secret scan failed:", ...errors.map((f) => `  [${f.rule}] ${f.match}`)].join("\n"));
+	if (errors.length > 0) return fail$2(["Secret scan failed:", ...errors.map((f) => `  [${f.rule}] ${f.match}`)].join("\n"));
 	const entry = {
 		name,
 		description,
@@ -13176,13 +13844,13 @@ const runPromote = async (options) => {
 		branch,
 		"main"
 	], { cwd: cloneDir });
-	if (!checkoutResult.ok) return fail$1(`git checkout failed: ${checkoutResult.stderr}`);
+	if (!checkoutResult.ok) return fail$2(`git checkout failed: ${checkoutResult.stderr}`);
 	await fs.mkdir(path$1.dirname(absEntryPath), { recursive: true });
 	await fs.writeFile(absEntryPath, serializeEntry(entry), "utf8");
 	const addResult = await exec$1("git", ["add", relPath], { cwd: cloneDir });
 	if (!addResult.ok) {
 		await gitCleanup();
-		return fail$1(`git add failed: ${addResult.stderr}`);
+		return fail$2(`git add failed: ${addResult.stderr}`);
 	}
 	const commitResult = await exec$1("git", [
 		"commit",
@@ -13191,7 +13859,7 @@ const runPromote = async (options) => {
 	], { cwd: cloneDir });
 	if (!commitResult.ok) {
 		await gitCleanup();
-		return fail$1(`git commit failed: ${commitResult.stderr}`);
+		return fail$2(`git commit failed: ${commitResult.stderr}`);
 	}
 	const pushResult = await exec$1("git", [
 		"push",
@@ -13201,7 +13869,7 @@ const runPromote = async (options) => {
 	], { cwd: cloneDir });
 	if (!pushResult.ok) {
 		await gitCleanup();
-		return fail$1(`git push failed: ${pushResult.stderr}`);
+		return fail$2(`git push failed: ${pushResult.stderr}`);
 	}
 	const prResult = await ghRunner([
 		"pr",
@@ -13219,18 +13887,131 @@ const runPromote = async (options) => {
 		...warnings.map((f) => `  [${f.rule}] ${f.match}`)
 	] : [];
 	await exec$1("git", ["checkout", "main"], { cwd: cloneDir });
-	if (prResult.ok) return ok$1([
+	if (prResult.ok) return ok$2([
 		`Entry written: ${relPath}`,
 		`Branch: ${branch}`,
 		`PR: ${prResult.stdout.trim()}`,
 		...warningLines
 	].join("\n"));
 	const fallback = compareUrl(commons, branch) ?? `open a PR for branch ${branch} on your git host`;
-	return ok$1([
+	return ok$2([
 		`Entry written: ${relPath}`,
 		`Branch: ${branch}`,
 		`gh unavailable — ${fallback}`,
 		...warningLines
+	].join("\n"));
+};
+//#endregion
+//#region src/commands/promote-library.ts
+const fail$1 = (output) => ({
+	exitCode: 1,
+	output
+});
+const ok$1 = (output) => ({
+	exitCode: 0,
+	output
+});
+const defaultGhRunner$1 = (args, cwd) => exec$1("gh", args, { cwd });
+const resolveCommonsUrl = async (cwd, commonsUrl) => {
+	if (commonsUrl) return commonsUrl;
+	const v2 = await loadConfigV2(cwd);
+	return v2.ok ? v2.config.commons : void 0;
+};
+const runPromoteLibrary = async (options) => {
+	const { cwd, name, author, date, home = memoryHome(), librariesRoot = librariesHome(memoryHome()), ghRunner = defaultGhRunner$1 } = options;
+	if (!SCOPE_ID_RE.test(name)) return fail$1(`Invalid library name "${name}". Must match ${SCOPE_ID_RULE}.`);
+	if (!author.trim()) return fail$1("author must not be empty.");
+	if (!isValidDate(date)) return fail$1(`Invalid date "${date}". Must be ${DATE_RULE} and a real calendar date.`);
+	const sourceDir = path$1.join(librariesRoot, name);
+	if (!await exists(path$1.join(sourceDir, "LIBRARY.md"))) return fail$1(`No local library at ${sourceDir} (expected LIBRARY.md). Run roboto-mem sync first.`);
+	const commonsUrl = await resolveCommonsUrl(cwd, options.commonsUrl);
+	if (!commonsUrl) return fail$1(`No --commons-url given and no .roboto-mem.json (v2) found in ${cwd}. Run roboto-mem init or pass --commons-url.`);
+	const repoSync = await ensureRepo(commonsUrl, home);
+	if (!repoSync.ok) return fail$1(`Failed to sync commons repo: ${repoSync.error}`);
+	const cloneDir = repoSync.dir;
+	const relDir = `libraries/${name}`;
+	const absTarget = path$1.join(cloneDir, relDir);
+	const diff = await diffDirs(await exists(absTarget) ? absTarget : void 0, sourceDir);
+	const dirHash = await hashSkillDir(sourceDir);
+	const branch = `library/${name}`;
+	const gitCleanup = () => exec$1("git", ["checkout", "main"], { cwd: cloneDir });
+	await exec$1("git", ["fetch", "origin"], { cwd: cloneDir });
+	const remoteRef = `origin/${branch}`;
+	const checkout = await exec$1("git", [
+		"checkout",
+		"-B",
+		branch,
+		(await exec$1("git", [
+			"rev-parse",
+			"--verify",
+			"--quiet",
+			remoteRef
+		], { cwd: cloneDir })).ok ? remoteRef : "main"
+	], { cwd: cloneDir });
+	if (!checkout.ok) return fail$1(`git checkout failed: ${checkout.stderr}`);
+	await rm(absTarget, {
+		recursive: true,
+		force: true
+	});
+	await mkdir(absTarget, { recursive: true });
+	await cp(sourceDir, absTarget, { recursive: true });
+	const add = await exec$1("git", ["add", relDir], { cwd: cloneDir });
+	if (!add.ok) {
+		await gitCleanup();
+		return fail$1(`git add failed: ${add.stderr}`);
+	}
+	if ((await exec$1("git", [
+		"diff",
+		"--cached",
+		"--quiet"
+	], { cwd: cloneDir })).ok) {
+		await gitCleanup();
+		return ok$1(`${relDir} is already up to date — nothing to promote.`);
+	}
+	const commit = await exec$1("git", [
+		"commit",
+		"-m",
+		`chore: promote library ${name}\n\n${dirHash}`
+	], { cwd: cloneDir });
+	if (!commit.ok) {
+		await gitCleanup();
+		return fail$1(`git commit failed: ${commit.stderr}`);
+	}
+	const push = await exec$1("git", [
+		"push",
+		"-u",
+		"origin",
+		branch
+	], { cwd: cloneDir });
+	if (!push.ok) {
+		await gitCleanup();
+		return fail$1(`git push failed: ${push.stderr}`);
+	}
+	const prResult = await ghRunner([
+		"pr",
+		"create",
+		"--title",
+		`chore: promote library ${name}`,
+		"--body",
+		[
+			`Promoted by ${author} on ${date} via roboto-mem.`,
+			"",
+			formatDirDiff(diff)
+		].join("\n"),
+		"--head",
+		branch
+	], cloneDir);
+	await gitCleanup();
+	if (prResult.ok) return ok$1([
+		`Library promoted: ${relDir}`,
+		`Branch: ${branch}`,
+		`PR: ${prResult.stdout.trim()}`
+	].join("\n"));
+	const fallback = compareUrl(commonsUrl, branch) ?? `open a PR for branch ${branch} on your git host`;
+	return ok$1([
+		`Library promoted: ${relDir}`,
+		`Branch: ${branch}`,
+		`gh unavailable — ${fallback}`
 	].join("\n"));
 };
 //#endregion
@@ -16205,7 +16986,8 @@ const INIT_FIELD_DESC = {
 	commonsUrl: "Commons repo URL",
 	project: "Project name",
 	squads: "Comma-separated squad names",
-	scaffoldCommons: "Scaffold commons repo"
+	scaffoldCommons: "Scaffold commons repo",
+	libraries: "Comma-separated library names (skips auto-detect confirmation)"
 };
 const PROMOTE_FIELD_DESC = {
 	scope: "Entry scope",
@@ -16243,6 +17025,8 @@ const pick = (key, providedValue, answers) => {
 	const value = String(answers[key]).trim();
 	return value ? value : void 0;
 };
+/** Exported so interactive.ts's "bind-libraries" commons-url prompt (global
+* library model init flow) reuses the exact same rule. */
 const validateCommonsUrl = (value) => {
 	const trimmed = value.trim();
 	if (!trimmed) return "must not be empty";
@@ -16292,7 +17076,8 @@ const buildInitOptions = (provided, answers) => {
 		project: pick("project", provided.project, answers),
 		commonsUrl: pick("commonsUrl", provided.commonsUrl, answers),
 		squads: squadsRaw ? splitSquads(squadsRaw) : void 0,
-		scaffoldCommons: "scaffoldCommons" in answers ? answers.scaffoldCommons : provided.scaffoldCommons
+		scaffoldCommons: "scaffoldCommons" in answers ? answers.scaffoldCommons : provided.scaffoldCommons,
+		libraries: provided.libraries !== void 0 ? splitSquads(provided.libraries) : void 0
 	};
 };
 const validateEntryName = (value) => SCOPE_ID_RE.test(value) ? void 0 : `must match ${SCOPE_ID_RULE}`;
@@ -16556,21 +17341,55 @@ const resolveBindPrompts = async (provided, driver, dir) => {
 		options: buildInitOptions(provided, collected.answers)
 	};
 };
+/** Resolves the v2 (library model) commons URL only — shared by an explicit
+* `--libraries` flag and the mode-select's "bind-libraries" answer below.
+* The library list itself is resolved later via init's own injected
+* `selectLibraries` callback, never here. */
+const resolveLibraryCommonsUrl = async (provided, driver) => {
+	if (provided.commonsUrl !== void 0) return {
+		cancelled: false,
+		commonsUrl: provided.commonsUrl
+	};
+	const commonsUrl = await driver.text({
+		message: INIT_FIELD_DESC.commonsUrl,
+		validate: validateCommonsUrl
+	});
+	if (driver.isCancel(commonsUrl)) return { cancelled: true };
+	return {
+		cancelled: false,
+		commonsUrl: String(commonsUrl)
+	};
+};
 const resolveInitPrompts = async (provided, driver, dir) => {
 	if (provided.scaffoldCommons === true) return {
 		cancelled: false,
 		options: { scaffoldCommons: true }
 	};
+	if (provided.libraries !== void 0) {
+		const resolved = await resolveLibraryCommonsUrl(provided, driver);
+		if (resolved.cancelled) return { cancelled: true };
+		return {
+			cancelled: false,
+			options: buildInitOptions(provided, { commonsUrl: resolved.commonsUrl })
+		};
+	}
 	if (provided.project !== void 0 || provided.commonsUrl !== void 0 || provided.squads !== void 0) return resolveBindPrompts(provided, driver, dir);
 	const mode = await driver.select({
 		message: "How should this directory be set up?",
-		options: [{
-			value: "bind",
-			label: "Bind this project to a Commons"
-		}, {
-			value: "scaffold",
-			label: "Scaffold a new Commons repo"
-		}],
+		options: [
+			{
+				value: "bind",
+				label: "Bind this project to a Commons"
+			},
+			{
+				value: "bind-libraries",
+				label: "Bind to a Commons using team libraries (global library model)"
+			},
+			{
+				value: "scaffold",
+				label: "Scaffold a new Commons repo"
+			}
+		],
 		initialValue: "bind"
 	});
 	if (driver.isCancel(mode)) return { cancelled: true };
@@ -16585,6 +17404,14 @@ const resolveInitPrompts = async (provided, driver, dir) => {
 		return {
 			cancelled: false,
 			options: { scaffoldCommons: true }
+		};
+	}
+	if (mode === "bind-libraries") {
+		const resolved = await resolveLibraryCommonsUrl(provided, driver);
+		if (resolved.cancelled) return { cancelled: true };
+		return {
+			cancelled: false,
+			options: { commonsUrl: resolved.commonsUrl }
 		};
 	}
 	return resolveBindPrompts(provided, driver, dir);
@@ -16799,6 +17626,34 @@ const safeNag = async () => {
 		return;
 	}
 };
+/**
+* Real, clack-backed library confirm/add/remove for init's v2 (global
+* library model) flow — built here (not in init.ts, which stays prompt-
+* module-free like every other command) and injected as a plain callback.
+* Mirrors the design spec's init steps 7–8 literally: declining the initial
+* confirm skips straight to an empty list (no add/remove asked); accepting
+* it allows freeform additions/removals on top of the detected set.
+*/
+const selectLibraries = async (input) => {
+	const driver = await createClackDriver();
+	const message = [
+		`Available in commons: ${input.available.length ? input.available.join(", ") : "(none)"}`,
+		`Detected in your deps: ${input.detected.length ? input.detected.join(", ") : "(none)"}`,
+		"Load these libraries?"
+	].join("\n");
+	const proceed = await driver.confirm({
+		message,
+		initialValue: true
+	});
+	if (driver.isCancel(proceed)) return void 0;
+	if (proceed !== true) return [];
+	const added = await driver.text({ message: "Add more? (comma-separated names, or press enter)" });
+	if (driver.isCancel(added)) return void 0;
+	const removed = await driver.text({ message: "Remove any? (comma-separated names, or press enter)" });
+	if (driver.isCancel(removed)) return void 0;
+	const removedSet = new Set(splitSquads(String(removed)));
+	return [...new Set([...input.detected, ...splitSquads(String(added))])].filter((lib) => !removedSet.has(lib));
+};
 const initCmd = defineCommand({
 	meta: {
 		name: "init",
@@ -16825,6 +17680,10 @@ const initCmd = defineCommand({
 		commons: {
 			type: "boolean",
 			description: INIT_FIELD_DESC.scaffoldCommons
+		},
+		libraries: {
+			type: "string",
+			description: INIT_FIELD_DESC.libraries
 		}
 	},
 	async run({ args }) {
@@ -16833,7 +17692,8 @@ const initCmd = defineCommand({
 			project: args.project,
 			commonsUrl: args["commons-url"],
 			squads: args.squads,
-			scaffoldCommons: args.commons
+			scaffoldCommons: args.commons,
+			libraries: args.libraries
 		};
 		const filled = isInteractiveTty() ? await resolveInitPrompts(provided, await createClackDriver(), dir) : {
 			cancelled: false,
@@ -16845,10 +17705,24 @@ const initCmd = defineCommand({
 		}
 		emit(await runInit({
 			dir,
-			...filled.options
+			...filled.options,
+			selectLibraries: isInteractiveTty() ? selectLibraries : void 0
 		}));
 	}
 });
+/**
+* Real, clack-backed confirm for sync's library-collision gate — built here
+* (not in sync.ts, which must stay prompt-module-free; see
+* tests/cli.test.ts's "prompt module isolation" suite) and injected as a
+* plain callback. Non-TTY leaves confirmLibrarySync undefined, which
+* core/library.ts's materializeLibraries treats as auto-pull.
+*/
+const confirmLibrarySync = async (message) => {
+	return await (await createClackDriver()).confirm({
+		message,
+		initialValue: true
+	}) === true;
+};
 const syncCmd = defineCommand({
 	meta: {
 		name: "sync",
@@ -16856,7 +17730,10 @@ const syncCmd = defineCommand({
 	},
 	args: {},
 	async run() {
-		emit(await runSync({ cwd: process.cwd() }));
+		emit(await runSync({
+			cwd: process.cwd(),
+			confirmLibrarySync: isInteractiveTty() ? confirmLibrarySync : void 0
+		}));
 	}
 });
 const digestCmd = defineCommand({
@@ -16886,6 +17763,44 @@ const digestCmd = defineCommand({
 			} })}\n`);
 			process.exitCode = 0;
 		}
+	}
+});
+const promoteLibraryCmd = defineCommand({
+	meta: {
+		name: "library",
+		description: "Promote a local library (~/.roboto-mem/libraries/<name>) to the commons (opens a PR)"
+	},
+	args: {
+		name: {
+			type: "positional",
+			description: "Library name",
+			required: false
+		},
+		"commons-url": {
+			type: "string",
+			description: "Commons repo URL (defaults to the project's .roboto-mem.json)"
+		},
+		author: {
+			type: "string",
+			description: "Author"
+		},
+		date: {
+			type: "string",
+			description: "Date (YYYY-MM-DD)"
+		}
+	},
+	async run({ args }) {
+		if (!args.name) {
+			await reportMissingPositional(promoteLibraryCmd, promoteCmd, "name", "NAME");
+			return;
+		}
+		emit(await runPromoteLibrary({
+			cwd: process.cwd(),
+			name: args.name,
+			commonsUrl: args["commons-url"],
+			author: args.author ?? "",
+			date: args.date ?? todayYMD()
+		}));
 	}
 });
 const promoteCmd = defineCommand({
@@ -16931,7 +17846,11 @@ const promoteCmd = defineCommand({
 			description: PROMOTE_FIELD_DESC.force
 		}
 	},
-	async run({ args }) {
+	async run({ args, rawArgs }) {
+		if (rawArgs[0] === "library") {
+			await runCommand(promoteLibraryCmd, { rawArgs: rawArgs.slice(1) });
+			return;
+		}
 		const provided = {
 			scope: args.scope,
 			type: args.type,
@@ -17028,6 +17947,16 @@ const statusCmd = defineCommand({
 	args: {},
 	async run() {
 		emit(await runStatus({ cwd: process.cwd() }));
+	}
+});
+const migrateCmd = defineCommand({
+	meta: {
+		name: "migrate",
+		description: "Migrate .roboto-mem.json from configVersion 1 to 2"
+	},
+	args: {},
+	async run() {
+		emit(await runMigrate({ cwd: process.cwd() }));
 	}
 });
 const skillAddCmd = defineCommand({
@@ -17156,6 +18085,7 @@ const main = defineCommand({
 		promote: promoteCmd,
 		lint: lintCmd,
 		status: statusCmd,
+		migrate: migrateCmd,
 		skill: skillCmd
 	}
 });

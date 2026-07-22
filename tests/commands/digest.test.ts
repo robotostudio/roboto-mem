@@ -2,8 +2,18 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runDigest } from "../../src/commands/digest.js";
+import { runSync } from "../../src/commands/sync.js";
 import { saveConfig } from "../../src/core/config.js";
-import { makeCommonsFixture, pushEntry } from "../helpers/git.js";
+import {
+  ensureRepo,
+  repoDirFor,
+  writeSyncDate,
+} from "../../src/core/memory-repo.js";
+import {
+  makeCommonsFixture,
+  makeV2CommonsFixture,
+  pushEntry,
+} from "../helpers/git.js";
 import { tmpDirFactory } from "../helpers/tmp.js";
 
 const TODAY = "2026-06-12";
@@ -21,6 +31,17 @@ const makeConfig = (commonsUrl: string, overlays: string[] = []) => ({
   squads: ["web"],
   workspaces: { ".": ["stack/sanity"] },
 });
+
+// Global library model (Phase 6): the digest hook no longer clones/pulls —
+// it only reads whatever a prior `roboto-mem sync` (or `init`) left on disk.
+// Tests that need entries to actually load must sync the fixture into
+// `home` themselves first, exactly like a real user would before their
+// first session. See docs/design-specs/2026-07-17-global-library-model.md.
+const sync = async (url: string, home: string): Promise<void> => {
+  const result = await ensureRepo(url, home);
+  if (!result.ok)
+    throw new Error(`test setup: ensureRepo failed: ${result.error}`);
+};
 
 describe("digest command", () => {
   const tmp = tmpDirFactory("rm-digest-");
@@ -53,6 +74,7 @@ describe("digest command", () => {
 
     const fixture = await makeCommonsFixture(tmp);
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+    await sync(fixture.remoteUrl, home);
 
     const result = await runDigest({ cwd, home, today: TODAY });
     expect(result.exitCode).toBe(0);
@@ -74,6 +96,7 @@ describe("digest command", () => {
 
     const fixture = await makeCommonsFixture(tmp);
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+    await sync(fixture.remoteUrl, home);
 
     const result = await runDigest({ cwd, home, hook: true, today: TODAY });
     expect(result.exitCode).toBe(0);
@@ -98,6 +121,7 @@ describe("digest command", () => {
 
     const fixture = await makeCommonsFixture(tmp);
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+    await sync(fixture.remoteUrl, home);
 
     await runDigest({ cwd, home, today: TODAY });
 
@@ -126,17 +150,21 @@ describe("digest command", () => {
 
     const fixture = await makeCommonsFixture(tmp);
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+    await sync(fixture.remoteUrl, home);
 
     // First successful digest to populate cache
     const first = await runDigest({ cwd, home, today: TODAY });
     expect(first.exitCode).toBe(0);
 
-    // Push a memory.json with formatVersion 2 (newer than supported)
+    // Push a memory.json with formatVersion 3 (newer than supported), then
+    // sync it locally — the hook itself never pulls, so without this the
+    // second run would just see the same (still-valid) clone as the first.
     await pushEntry(
       fixture,
       "memory.json",
-      JSON.stringify({ formatVersion: 2, budgets: {} }, null, 2),
+      JSON.stringify({ formatVersion: 3, budgets: {} }, null, 2),
     );
+    await sync(fixture.remoteUrl, home);
 
     // Second run — should hit stale path
     const second = await runDigest({ cwd, home, today: TODAY });
@@ -155,12 +183,14 @@ describe("digest command", () => {
 
     const fixture = await makeCommonsFixture(tmp);
 
-    // Push newer-format memory.json before any clone
+    // Push newer-format memory.json, then sync it locally — no digest has
+    // run yet, so there is no cache (the hook itself no longer clones/pulls).
     await pushEntry(
       fixture,
       "memory.json",
-      JSON.stringify({ formatVersion: 2, budgets: {} }, null, 2),
+      JSON.stringify({ formatVersion: 3, budgets: {} }, null, 2),
     );
+    await sync(fixture.remoteUrl, home);
 
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
 
@@ -176,48 +206,246 @@ describe("digest command", () => {
     );
   });
 
-  // 8. offline (remote disappears after clone) → digest still produced from stale clone, exit 0
-  //    cache date wins over injected today when stale; cache file is NOT rewritten
-  it("offline after clone → stale digest produced, exit 0, cache date wins", async () => {
+  // 7b. v2-shaped project config (configVersion 2 + commons + libraries, no v1
+  // fields) with a synced v2 commons → a freshly `init`ed v2 project must get
+  // a live digest (global entries always apply; library-scoped entries only
+  // for declared libraries), not the v1 loader's permanent "newer-config"
+  // stale fallback. See global library model spec, "new CLI × v2 config × v2
+  // commons (works)" success criterion.
+  it("v2 config (configVersion 2 + libraries) with synced v2 commons → live digest with global + declared-library entries", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeV2CommonsFixture(tmp);
+    await pushEntry(
+      fixture,
+      "entries/decision-framework.md",
+      `---
+description: Global decision framework
+type: standard
+author: hrithik
+date: 2026-06-01
+---
+Always weigh reversibility before committing.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/resend-templates.md",
+      `---
+description: Resend email templates
+type: standard
+author: hrithik
+date: 2026-06-01
+scope: library:resend
+---
+Use the shared template partials.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/sanity-typegen.md",
+      `---
+description: Sanity typegen flag
+type: lesson
+author: hrithik
+date: 2026-06-01
+scope: library:sanity
+---
+Undeclared library — must not appear in the digest.`,
+    );
+
+    await fs.writeFile(
+      path.join(cwd, ".roboto-mem.json"),
+      JSON.stringify({
+        configVersion: 2,
+        commons: fixture.remoteUrl,
+        libraries: ["resend"],
+      }),
+      "utf8",
+    );
+    await sync(fixture.remoteUrl, home);
+
+    const result = await runDigest({ cwd, home, today: TODAY });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("decision-framework");
+    expect(result.output).toContain("resend-templates");
+    expect(result.output).not.toContain("sanity-typegen");
+  });
+
+  // 7b-i. Designed v2 drop: legacy-scoped commons entries (org, squad/*,
+  // stack/*, project/*) are neither untagged nor `library:{name}` — under v2,
+  // config.libraries is the whole session-scopes list, so entryApplies never
+  // matches them. Locks in the behavior migrate.ts's always-present note
+  // warns about until the commons itself is retagged. See entryApplies in
+  // src/core/scopes.ts.
+  it("v2 config: commons entries still carrying legacy org/stack scopes are dropped; untagged and declared-library entries still load", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeV2CommonsFixture(tmp);
+    await pushEntry(
+      fixture,
+      "entries/org/org-standard.md",
+      `---
+description: Org-wide standard
+type: standard
+author: hrithik
+date: 2026-06-01
+---
+Applies org-wide under v1.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/stacks/next/next-lesson.md",
+      `---
+description: Next.js lesson
+type: lesson
+author: hrithik
+date: 2026-06-01
+---
+Applies to the next stack under v1.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/untagged-note.md",
+      `---
+description: Untagged note
+type: standard
+author: hrithik
+date: 2026-06-01
+---
+Always applies.`,
+    );
+    await pushEntry(
+      fixture,
+      "entries/resend-templates.md",
+      `---
+description: Resend email templates
+type: standard
+author: hrithik
+date: 2026-06-01
+scope: library:resend
+---
+Use the shared template partials.`,
+    );
+
+    await fs.writeFile(
+      path.join(cwd, ".roboto-mem.json"),
+      JSON.stringify({
+        configVersion: 2,
+        commons: fixture.remoteUrl,
+        libraries: ["resend"],
+      }),
+      "utf8",
+    );
+    await sync(fixture.remoteUrl, home);
+
+    const result = await runDigest({ cwd, home, today: TODAY });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("untagged-note");
+    expect(result.output).toContain("resend-templates");
+    expect(result.output).not.toContain("org-standard");
+    expect(result.output).not.toContain("next-lesson");
+  });
+
+  // 7b-ii. Sync-date persistence: the hook reads a local clone without
+  // pulling, so the header must show the date `roboto-mem sync` last
+  // recorded (which may be days old) — not the run date — when `today` is
+  // not injected. See writeSyncDate/readSyncDate in core/memory-repo.ts.
+  it("v2 digest without injected today shows the persisted sync date, not the run date", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeV2CommonsFixture(tmp, {
+      resend: { "LIBRARY.md": "# Resend\nSummary." },
+    });
+    await fs.writeFile(
+      path.join(cwd, ".roboto-mem.json"),
+      JSON.stringify({
+        configVersion: 2,
+        commons: fixture.remoteUrl,
+        libraries: ["resend"],
+      }),
+      "utf8",
+    );
+    await sync(fixture.remoteUrl, home);
+    // Simulate a successful sync that happened days ago.
+    await writeSyncDate(fixture.remoteUrl, home, "2026-06-10");
+
+    // No `today` injected → the persisted date must win over todayString().
+    const result = await runDigest({ cwd, home });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("synced 2026-06-10");
+  });
+
+  // 7c. v2-shaped project config with no prior `roboto-mem sync` → the hook
+  // never touches the network (same network-free contract as v1), so it
+  // reports the same "run roboto-mem sync" advisory a v1 project would get
+  // from an un-synced commons, exit 0.
+  it("v2 config with no prior sync + hook → exit 0, advisory to run roboto-mem sync", async () => {
+    const cwd = await makeDir();
+    const home = await makeDir();
+
+    await fs.writeFile(
+      path.join(cwd, ".roboto-mem.json"),
+      JSON.stringify({
+        configVersion: 2,
+        commons: "git@github.com:team/commons.git",
+        libraries: ["resend"],
+      }),
+      "utf8",
+    );
+
+    const result = await runDigest({ cwd, home, hook: true, today: TODAY });
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.output) as {
+      hookSpecificOutput: { hookEventName: string; additionalContext: string };
+    };
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain(
+      "roboto-mem sync",
+    );
+  });
+
+  // 8. offline (remote disappears after a prior sync) → the hook never
+  //    touches the network, so digest still succeeds reading the local
+  //    clone. Each run's header reflects its own injected `today` (there is
+  //    no live pull to mark stale), and the cache is refreshed every run.
+  it("offline after sync → digest still succeeds from the local clone (hook never touches network)", async () => {
     const cwd = await makeDir();
     const tmp = await makeDir();
     const home = await makeDir();
 
     const fixture = await makeCommonsFixture(tmp);
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+    await sync(fixture.remoteUrl, home);
 
     // First run: seed the cache with today = "2026-06-10"
     const first = await runDigest({ cwd, home, today: "2026-06-10" });
     expect(first.exitCode).toBe(0);
+    expect(first.output).toContain("synced 2026-06-10");
 
-    // Snapshot cache state before going offline
-    const cacheDir = path.join(home, "cache");
-    const cacheFiles = await fs.readdir(cacheDir);
-    const cacheFile = cacheFiles[0];
-    if (!cacheFile) throw new Error("no cache file after first run");
-    const cachePath = path.join(cacheDir, cacheFile);
-    const statBefore = await fs.stat(cachePath);
-    const contentBefore = await fs.readFile(cachePath, "utf8");
-
-    // Make the remote unreachable by renaming the bare dir
+    // Make the remote unreachable by renaming the bare dir — the hook must
+    // not care, since it never attempts to reach it.
     const renamedBare = `${fixture.remoteUrl}_gone`;
     await fs.rename(fixture.remoteUrl, renamedBare);
 
-    // Second run: pull fails → stale:true → still compiles from local clone
-    // today = "2026-06-13" — must NOT appear in header; cache date "2026-06-10" must
     const second = await runDigest({ cwd, home, today: "2026-06-13" });
     expect(second.exitCode).toBe(0);
     expect(second.output).toContain("# Team Memory");
+    expect(second.output).toContain("synced 2026-06-13");
 
-    // Cache date wins: header must reference the original sync date
-    expect(second.output).toContain("synced 2026-06-10");
-    expect(second.output).not.toContain("2026-06-13");
-
-    // Cache file must NOT have been rewritten (mtime and content unchanged)
-    const statAfter = await fs.stat(cachePath);
-    expect(statAfter.mtimeMs).toBe(statBefore.mtimeMs);
-    const contentAfter = await fs.readFile(cachePath, "utf8");
-    expect(contentAfter).toBe(contentBefore);
+    // Cache reflects the latest successful run.
+    const cacheDir = path.join(home, "cache");
+    const cacheFiles = await fs.readdir(cacheDir);
+    const cacheFile = cacheFiles[0];
+    if (!cacheFile) throw new Error("no cache file after second run");
+    const cacheContent = JSON.parse(
+      await fs.readFile(path.join(cacheDir, cacheFile), "utf8"),
+    ) as { date: string; digest: string };
+    expect(cacheContent.date).toBe("2026-06-13");
   });
 
   // 9a. overlay budget merge: overlay declared budgets win; commons budgets not clobbered by undeclared keys
@@ -261,6 +489,8 @@ This lesson comes exclusively from the overlay repo.`,
       cwd,
       makeConfig(commonsFixture.remoteUrl, [overlayFixture.remoteUrl]),
     );
+    await sync(commonsFixture.remoteUrl, home);
+    await sync(overlayFixture.remoteUrl, home);
 
     const result = await runDigest({ cwd, home, today: TODAY });
     expect(result.exitCode).toBe(0);
@@ -306,6 +536,7 @@ This lesson comes exclusively from the overlay repo.`,
 
     const fixture = await makeCommonsFixture(tmp2);
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+    await sync(fixture.remoteUrl, home);
 
     // Block the cache dir by placing a FILE where writeCache would mkdir
     await fs.writeFile(path.join(home, "cache"), "i am a file not a dir");
@@ -340,8 +571,11 @@ This lesson comes exclusively from the overlay repo.`,
     expect(parsed.hookSpecificOutput.additionalContext).toMatch(/unreadable/i);
   });
 
-  // 12. skills: warns on drift-restore at session start, stays silent otherwise
-  it("skills: warns on drift-restore at session start, stays silent otherwise", async () => {
+  // 12. skills: the hook no longer materializes or restores team skills at
+  // all (global library model Phase 6 — moved to manual `roboto-mem sync`).
+  // Drift left by a prior sync must survive a digest run untouched; sync
+  // remains the only thing that restores it.
+  it("skills: hook never materializes/restores team skills — only sync does", async () => {
     const cwd = await makeDir();
     const fixtureRoot = await makeDir();
     const home = await makeDir();
@@ -354,30 +588,86 @@ This lesson comes exclusively from the overlay repo.`,
     );
     await saveConfig(cwd, makeConfig(fixture.remoteUrl));
 
-    const first = await runDigest({
-      cwd,
-      home,
-      skillsTargetDir: target,
-      today: TODAY,
-    });
-    expect(first.exitCode).toBe(0);
-    expect(first.output).not.toContain("team skill");
+    // Materialize the skill via sync (unaffected by this phase's change).
+    const synced = await runSync({ cwd, home, skillsTargetDir: target });
+    expect(synced.exitCode).toBe(0);
 
+    // Drift the materialized copy.
     await fs.writeFile(
       path.join(target, "grill-me", "SKILL.md"),
       "local edits",
       "utf8",
     );
 
-    const second = await runDigest({
+    // digest --hook has no skillsTargetDir option and no longer touches
+    // skills at all — the drifted file, and the digest output, stay untouched.
+    const digestResult = await runDigest({
       cwd,
       home,
-      skillsTargetDir: target,
+      hook: true,
       today: TODAY,
     });
-    expect(second.exitCode).toBe(0);
-    expect(second.output).toContain(
-      "> WARNING: team skill grill-me: restored — local edits were replaced",
+    expect(digestResult.exitCode).toBe(0);
+    expect(digestResult.output).not.toMatch(/skill/i);
+    const stillDrifted = await fs.readFile(
+      path.join(target, "grill-me", "SKILL.md"),
+      "utf8",
     );
+    expect(stillDrifted).toBe("local edits");
+
+    // Backward-compat: sync still restores drift on demand.
+    const resynced = await runSync({ cwd, home, skillsTargetDir: target });
+    expect(resynced.exitCode).toBe(0);
+    expect(resynced.output).toContain("restored: grill-me");
+    const restored = await fs.readFile(
+      path.join(target, "grill-me", "SKILL.md"),
+      "utf8",
+    );
+    expect(restored).toContain("team body");
+  });
+
+  // 13. v1 config bound but never synced → hook is not silent (unlike "no
+  // config"): it surfaces an informative, non-crashing message telling the
+  // user to sync, and it must not have attempted any clone itself.
+  it("v1 config, never synced + hook → exit 0, informative message, no clone attempted", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeCommonsFixture(tmp);
+    await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+
+    const result = await runDigest({ cwd, home, hook: true, today: TODAY });
+    expect(result.exitCode).toBe(0);
+
+    const parsed = JSON.parse(result.output) as {
+      hookSpecificOutput: { hookEventName: string; additionalContext: string };
+    };
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(parsed.hookSpecificOutput.additionalContext).toMatch(
+      /not synced|roboto-mem sync/i,
+    );
+
+    // The hook must not have cloned anything itself.
+    const cloneDir = repoDirFor(fixture.remoteUrl, home);
+    await expect(fs.access(cloneDir)).rejects.toThrow();
+  });
+
+  // 14. Same "never synced" state, but through the direct (non-hook) CLI
+  // path — exit 1, same informative message, same no-clone guarantee.
+  it("v1 config, never synced, no hook → exit 1, mentions sync, no clone attempted", async () => {
+    const cwd = await makeDir();
+    const tmp = await makeDir();
+    const home = await makeDir();
+
+    const fixture = await makeCommonsFixture(tmp);
+    await saveConfig(cwd, makeConfig(fixture.remoteUrl));
+
+    const result = await runDigest({ cwd, home, today: TODAY });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toMatch(/not synced|roboto-mem sync/i);
+
+    const cloneDir = repoDirFor(fixture.remoteUrl, home);
+    await expect(fs.access(cloneDir)).rejects.toThrow();
   });
 });
